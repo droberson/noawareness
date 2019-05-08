@@ -37,6 +37,7 @@
 // TODO daemonize
 // TODO pid file + watchdog script
 // TODO entropy of file.
+// environment??
 // TODO add inotify-watch stuff
     // writes to passwd, shadow, sudoers, sudoers.d, ...
 
