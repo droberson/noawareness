@@ -18,6 +18,8 @@
 #include "proc_common.h"
 #include "string_common.h"
 
+// TODO flood protection; if someone runs a repetitive shell script or similar,
+    // don't send the logs over and over.
 // TODO keep track of processes as they are executed to give EXIT better context
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
@@ -237,11 +239,27 @@ void handle_PROC_EVENT_GID(struct proc_event *event) {
  * pid_t tracer_tgid
  */
 void handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-    printf("PTRACE pid=%d tgid=%d tracer_pid=%d tracer_tgid=%d\n",
-        event->event_data.ptrace.process_pid,
-        event->event_data.ptrace.process_tgid,
-        event->event_data.ptrace.tracer_pid,
-        event->event_data.ptrace.tracer_tgid);
+    // TODO timestamp
+    // TODO hash of tracer, exefila/name, etc...
+    json_object *jobj = json_object_new_object();
+    json_object *j_pid;
+    json_object *j_tgid;
+    json_object *j_tracer_pid;
+    json_object *j_tracer_tgid;
+    json_object *j_event_type = json_object_new_string("ptrace");
+
+    j_pid         = json_object_new_int(event->event_data.ptrace.process_pid);
+    j_tgid        = json_object_new_int(event->event_data.ptrace.process_tgid);
+    j_tracer_pid  = json_object_new_int(event->event_data.ptrace.tracer_pid);
+    j_tracer_tgid = json_object_new_int(event->event_data.ptrace.tracer_tgid);
+
+    json_object_object_add(jobj, "event_type", j_event_type);
+    json_object_object_add(jobj, "pid", j_pid);
+    json_object_object_add(jobj, "tgid", j_tgid);
+    json_object_object_add(jobj, "tracer_pid", j_tracer_pid);
+    json_object_object_add(jobj, "tracer_tgid", j_tracer_tgid);
+
+    printf("%s\n", json_object_to_json_string(jobj));
 }
 
 /* this happens when setsid() happens
@@ -323,6 +341,7 @@ void handle_message(struct cn_msg *cn_message) {
     }
 }
 
+// TODO clean this up.
 int main(int argc, char *argv[]) {
     int                     error;
     int                     netlink;
