@@ -68,8 +68,6 @@ void handle_PROC_EVENT_FORK(struct proc_event *event) {
 
     status = proc_get_status(event->event_data.fork.parent_pid);
     exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
-    //if (exepath == NULL)
-    //    exepath = "null";
 
     // TODO if this is deleted, read the map file
     md5 = (strstr(exepath, "(deleted)") == NULL) ? md5_digest_file(exepath) : "deleted";
@@ -150,6 +148,7 @@ void handle_PROC_EVENT_EXEC(struct proc_event *event) {
  * pid_t parent_tgid
  */
 void handle_PROC_EVENT_EXIT(struct proc_event *event) {
+    // TODO timestamp
     json_object *jobj = json_object_new_object();
     json_object *j_pid;
     json_object *j_tgid;
@@ -175,11 +174,6 @@ void handle_PROC_EVENT_EXIT(struct proc_event *event) {
     json_object_object_add(jobj, "signal", j_signal);
 
     printf("%s\n", json_object_to_json_string(jobj));
-    //printf("EXIT pid=%d tgid=%d exitcode=%d signal=%d\n",
-    //       event->event_data.exit.process_pid,
-    //       event->event_data.exit.process_tgid,
-    //       event->event_data.exit.exit_code,
-    //       event->event_data.exit.exit_signal);
 }
 
 /*
@@ -189,19 +183,51 @@ void handle_PROC_EVENT_EXIT(struct proc_event *event) {
  * union { u32 euid; u32 egid } e
  */
 void handle_PROC_EVENT_UID(struct proc_event *event) {
-    printf("UID pid=%d tgid=%d ruid=%d euid=%d\n",
-        event->event_data.id.process_pid,
-        event->event_data.id.process_tgid,
-        event->event_data.id.r.ruid,
-        event->event_data.id.e.euid);
+    // TODO timestamp
+    // TODO lookup pid exefile/name, hash, ...
+    json_object *jobj = json_object_new_object();
+    json_object *j_pid;
+    json_object *j_tgid;
+    json_object *j_ruid;
+    json_object *j_euid;
+    json_object *j_event_type = json_object_new_string("uid");
+
+    j_pid  = json_object_new_int(event->event_data.id.process_pid);
+    j_tgid = json_object_new_int(event->event_data.id.process_tgid);
+    j_ruid = json_object_new_int(event->event_data.id.r.ruid);
+    j_euid = json_object_new_int(event->event_data.id.e.euid);
+
+    json_object_object_add(jobj, "event_type", j_event_type);
+    json_object_object_add(jobj, "pid", j_pid);
+    json_object_object_add(jobj, "tgid", j_tgid);
+    json_object_object_add(jobj, "ruid", j_ruid);
+    json_object_object_add(jobj, "euid", j_euid);
+
+    printf("%s\n", json_object_to_json_string(jobj));
 }
 
 void handle_PROC_EVENT_GID(struct proc_event *event) {
-    printf("GID pid=%d tgid=%d rgid=%d egid=%d\n",
-        event->event_data.id.process_pid,
-        event->event_data.id.process_tgid,
-        event->event_data.id.r.rgid,
-        event->event_data.id.e.egid);
+    // TODO timestamp
+    // TODO lookup pid exefile/name, hash, ...
+    json_object *jobj = json_object_new_object();
+    json_object *j_pid;
+    json_object *j_tgid;
+    json_object *j_rgid;
+    json_object *j_egid;
+    json_object *j_event_type = json_object_new_string("gid");
+
+    j_pid  = json_object_new_int(event->event_data.id.process_pid);
+    j_tgid = json_object_new_int(event->event_data.id.process_tgid);
+    j_rgid = json_object_new_int(event->event_data.id.r.rgid);
+    j_egid = json_object_new_int(event->event_data.id.e.egid);
+
+    json_object_object_add(jobj, "event_type", j_event_type);
+    json_object_object_add(jobj, "pid", j_pid);
+    json_object_object_add(jobj, "tgid", j_tgid);
+    json_object_object_add(jobj, "rgid", j_rgid);
+    json_object_object_add(jobj, "egid", j_egid);
+
+    printf("%s\n", json_object_to_json_string(jobj));
 }
 
 /*
@@ -397,6 +423,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* Shouldn't ever get here */
     close(netlink);
 
     return EXIT_SUCCESS;
