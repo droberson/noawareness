@@ -19,7 +19,7 @@ char *md5_digest_file(const char *path) {
         fprintf(stderr, "md5_digest_file: unable to open %s for reading: %s\n",
                 path,
                 strerror(errno));
-        return NULL;
+        return "";
     }
 
     MD5_Init(&context);
