@@ -6,7 +6,6 @@
 
 #include <json-c/json.h>
 
-//#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -69,8 +68,8 @@ void handle_PROC_EVENT_FORK(struct proc_event *event) {
 
     status = proc_get_status(event->event_data.fork.parent_pid);
     exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
-    if (exepath == NULL)
-        exepath = "null";
+    //if (exepath == NULL)
+    //    exepath = "null";
 
     // TODO if this is deleted, read the map file
     md5 = (strstr(exepath, "(deleted)") == NULL) ? md5_digest_file(exepath) : "deleted";
@@ -151,11 +150,36 @@ void handle_PROC_EVENT_EXEC(struct proc_event *event) {
  * pid_t parent_tgid
  */
 void handle_PROC_EVENT_EXIT(struct proc_event *event) {
-    printf("EXIT pid=%d tgid=%d exitcode=%d signal=%d\n",
-           event->event_data.exit.process_pid,
-           event->event_data.exit.process_tgid,
-           event->event_data.exit.exit_code,
-           event->event_data.exit.exit_signal);
+    json_object *jobj = json_object_new_object();
+    json_object *j_pid;
+    json_object *j_tgid;
+    json_object *j_exitcode;
+    json_object *j_signal;
+    json_object *j_parent_pid;
+    json_object *j_parent_tgid;
+    json_object *j_event_type = json_object_new_string("exit");
+
+    j_pid         = json_object_new_int(event->event_data.exit.process_pid);
+    j_tgid        = json_object_new_int(event->event_data.exit.process_tgid);
+    j_exitcode    = json_object_new_int(event->event_data.exit.exit_code);
+    j_signal      = json_object_new_int(event->event_data.exit.exit_signal);
+    j_parent_pid  = json_object_new_int(event->event_data.exit.parent_pid);
+    j_parent_tgid = json_object_new_int(event->event_data.exit.parent_tgid);
+
+    json_object_object_add(jobj, "event_type", j_event_type);
+    json_object_object_add(jobj, "pid", j_pid);
+    json_object_object_add(jobj, "tgid", j_tgid);
+    json_object_object_add(jobj, "parent_pid", j_parent_pid);
+    json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
+    json_object_object_add(jobj, "exit_code", j_exitcode);
+    json_object_object_add(jobj, "signal", j_signal);
+
+    printf("%s\n", json_object_to_json_string(jobj));
+    //printf("EXIT pid=%d tgid=%d exitcode=%d signal=%d\n",
+    //       event->event_data.exit.process_pid,
+    //       event->event_data.exit.process_tgid,
+    //       event->event_data.exit.exit_code,
+    //       event->event_data.exit.exit_signal);
 }
 
 /*
