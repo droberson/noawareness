@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,198 +16,22 @@
 #include <linux/cn_proc.h>
 
 #include "md5_common.h"
+#include "proc_common.h"
 #include "string_common.h"
 
 // TODO keep track of processes as they are executed to give EXIT better context
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
     // the (deleted) suffix in exepath is there
-// TODO bloom filter + timed bloom filters
-    // TODO bloom filters of bad files
-    // TODO bloom filters of known good files.
-    // TODO bloom filters of previously executed files (log first time executed)
-// TODO remote logging (json, csv, tsv, ...)
-// TODO auto kill certain processes (if uid is running python or something, kill it)
-// TODO auto run yara rule against new processes
-    // https://yara.readthedocs.io/en/v3.7.0/capi.html
-// TODO if real path is a tmp directory, alert.
-// TODO if python -c or other longer than normal cmdlines, alert.
-// TODO if base64 in cmdline, alert.
+// TODO remote logging json
 // TODO daemonize
-// TODO pid file + watchdog script
+    // TODO pid file + watchdog script
 // TODO entropy of file.
-// environment??
+// TODO environment?? /proc/X/environ
+// TODO limits? /proc/X/limits
+
 // TODO add inotify-watch stuff
     // writes to passwd, shadow, sudoers, sudoers.d, ...
-
-char *proc_get_exe_path(pid_t pid) {
-    char        exe_path[PATH_MAX];
-    static char real_path[PATH_MAX];
-
-    snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
-
-    memset(real_path, 0x00, sizeof(real_path));
-
-    if (readlink(exe_path, real_path, PATH_MAX) == -1) {
-        fprintf(stderr, "readlink (%s): %s\n", exe_path, strerror(errno));
-    }
-
-    return real_path;
-}
-
-char *proc_get_cmdline(pid_t pid) {
-    // had to do it this way because /proc/X/cmdline stores arguments with
-    // a null as a separator instead of spaces or whatever. can probably
-    // do something better
-    int             fd;
-    int             i;
-    char            cmdline_path[PATH_MAX];
-    static char     buf[ARG_MAX];
-    int             bytes;
-
-    snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%d/cmdline", pid);
-
-    memset(buf, 0x00, sizeof(buf));
-
-    fd = open(cmdline_path, O_RDONLY);
-    bytes = read(fd, buf, sizeof(buf));
-    close(fd);
-
-    for (i = 0; i < bytes - 1; i++) {
-        if (buf[i] == 0x00) {
-            buf[i] = ' ';
-        }
-    }
-
-    return buf;
-}
-
-/*
-Name:	rtkit-daemon
-Umask:	0777
-State:	S (sleeping)
-Tgid:	736
-Ngid:	0
-Pid:	736
-PPid:	1
-TracerPid:	0
-Uid:	119	119	119	119
-Gid:	123	123	123	123
-FDSize:	128
-Groups:
-NStgid:	736
-NSpid:	736
-NSpgid:	736
-NSsid:	736
-VmPeak:	  224416 kB
-VmSize:	  158880 kB
-VmLck:	       0 kB
-VmPin:	       0 kB
-VmHWM:	    3040 kB
-VmRSS:	    2768 kB
-RssAnon:	     276 kB
-RssFile:	    2492 kB
-RssShmem:	       0 kB
-VmData:	   16976 kB
-VmStk:	     132 kB
-VmExe:	      60 kB
-VmLib:	    3360 kB
-VmPTE:	      72 kB
-VmSwap:	       0 kB
-HugetlbPages:	       0 kB
-CoreDumping:	0
-Threads:	3
-SigQ:	0/31680
-SigPnd:	0000000000000000
-ShdPnd:	0000000000000000
-SigBlk:	0000000000000000
-SigIgn:	0000000000001000
-SigCgt:	0000000180000000
-CapInh:	0000000000000000
-CapPrm:	0000000000800004
-CapEff:	0000000000800004
-CapBnd:	00000000008c00c4
-CapAmb:	0000000000000000
-NoNewPrivs:	0
-Seccomp:	0
-Speculation_Store_Bypass:	thread vulnerable
-Cpus_allowed:	ffffffff,ffffffff,ffffffff,ffffffff
-Cpus_allowed_list:	0-127
-Mems_allowed:	00000000,00000001
-Mems_allowed_list:	0
-voluntary_ctxt_switches:	98
-nonvoluntary_ctxt_switches:	46
-*/
-
-struct proc_status {
-    char    name[1024];
-    uid_t   uid;
-    uid_t   euid;
-    uid_t   ssuid;
-    uid_t   fsuid;
-    gid_t   gid;
-    gid_t   egid;
-    gid_t   ssgid;
-    gid_t   fsgid;
-};
-
-struct proc_status proc_get_status(pid_t pid) {
-    FILE                *fp;
-    struct proc_status  result;
-    char                proc_status[PATH_MAX];
-    char                buf[1024];
-
-    snprintf(proc_status, sizeof(proc_status), "/proc/%d/status", pid);
-
-    fp = fopen(proc_status, "r");
-    if (fp == NULL) {
-        fprintf(stderr, "error opening %s: %s\n", proc_status, strerror(errno));
-        memset(result.name, 0x00, sizeof(result.name));
-        return result;
-    }
-
-    while(fgets(buf, sizeof(buf), fp) != NULL) {
-        /*
-         * use a switch on the first letter so we arent parsing every line
-         * like a villager.
-         */
-        switch (buf[0]) {
-            case 'G':
-                if (startswith(buf, "Gid:")) {
-                    sscanf(buf, "Gid:\t%d\t%d\t%d\t%d\n",
-                        &result.gid,
-                        &result.egid,
-                        &result.ssgid,
-                        &result.fsgid);
-                }
-                break;
-
-            case 'N':
-                if (startswith(buf, "Name:")) {
-                    sscanf(buf, "Name:\t%s\n", result.name);
-                }
-                break;
-
-            case 'U':
-                if (startswith(buf, "Uid:")) {
-                    sscanf(buf, "Uid:\t%d\t%d\t%d\t%d\n",
-                        &result.uid,
-                        &result.euid,
-                        &result.ssuid,
-                        &result.fsuid);
-                }
-                break;
-
-            default:
-                //printf("%s", buf);
-                break;
-        }
-    }
-
-    fclose(fp);
-
-    return result;
-}
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
