@@ -6,7 +6,7 @@
 
 #include <json-c/json.h>
 
-#include <sys/stat.h>
+//#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -23,13 +23,13 @@
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
     // the (deleted) suffix in exepath is there
-// TODO remote logging json
+// TODO remote logging
 // TODO daemonize
     // TODO pid file + watchdog script
 // TODO entropy of file.
 // TODO environment?? /proc/X/environ
 // TODO limits? /proc/X/limits
-
+// TODO cwd /proc/X/cwd
 // TODO add inotify-watch stuff
     // writes to passwd, shadow, sudoers, sudoers.d, ...
 
@@ -47,34 +47,63 @@
  * pid_t child_tgid
  */
 void handle_PROC_EVENT_FORK(struct proc_event *event) {
+    // TODO timestamp
     char                *exepath;
+    char                *md5;
     struct proc_status  status;
+
+    json_object         *jobj = json_object_new_object();
+    json_object         *j_exepath;
+    json_object         *j_name;
+    json_object         *j_uid;
+    json_object         *j_euid;
+    json_object         *j_gid;
+    json_object         *j_egid;
+    json_object         *j_md5;
+    json_object         *j_parent_pid;
+    json_object         *j_parent_tgid;
+    json_object         *j_child_pid;
+    json_object         *j_child_tgid;
+    json_object         *j_cmdline;
+    json_object         *j_event_type = json_object_new_string("fork");
 
     status = proc_get_status(event->event_data.fork.parent_pid);
     exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
+    if (exepath == NULL)
+        exepath = "null";
 
-    printf("FORK %s\n"
-           "\tuid=%d\n"
-           "\teuid=%d\n"
-           "\tgid=%d\n"
-           "\tegid=%d\n"
-           "\tmd5=%s\n"
-           "\tparent(pid,tgid)=%d,%d\n"
-           "\tchild(pid,tgid)=%d,%d\n"
-           "\texepath=%s\n"
-           "\tcmdline=%s\n",
-           status.name,
-           status.uid,
-           status.euid,
-           status.gid,
-           status.egid,
-           md5_digest_file(exepath),
-           event->event_data.fork.parent_pid,
-           event->event_data.fork.parent_tgid,
-           event->event_data.fork.child_pid,
-           event->event_data.fork.child_tgid,
-	   exepath,
-	   proc_get_cmdline(event->event_data.fork.parent_pid));
+    // TODO if this is deleted, read the map file
+    md5 = (strstr(exepath, "(deleted)") == NULL) ? md5_digest_file(exepath) : "deleted";
+
+    j_exepath     = json_object_new_string(exepath);
+    j_name        = json_object_new_string(status.name);
+    j_uid         = json_object_new_int(status.uid);
+    j_euid        = json_object_new_int(status.euid);
+    j_gid         = json_object_new_int(status.gid);
+    j_egid        = json_object_new_int(status.egid);
+    j_md5         = json_object_new_string(md5);
+    j_parent_pid  = json_object_new_int(event->event_data.fork.parent_pid);
+    j_parent_tgid = json_object_new_int(event->event_data.fork.parent_tgid);
+    j_child_pid   = json_object_new_int(event->event_data.fork.child_pid);
+    j_child_tgid  = json_object_new_int(event->event_data.fork.child_tgid);
+    j_cmdline     = json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
+
+    json_object_object_add(jobj, "event_type", j_event_type);
+    json_object_object_add(jobj, "process_name", j_name);
+    json_object_object_add(jobj, "exepath", j_exepath);
+    json_object_object_add(jobj, "cmdline", j_cmdline);
+    json_object_object_add(jobj, "uid", j_uid);
+    json_object_object_add(jobj, "euid", j_euid);
+    json_object_object_add(jobj, "gid", j_gid);
+    json_object_object_add(jobj, "egid", j_egid);
+    json_object_object_add(jobj, "md5", j_md5);
+    json_object_object_add(jobj, "parent_pid", j_parent_pid);
+    json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
+    json_object_object_add(jobj, "child_pid", j_child_pid);
+    json_object_object_add(jobj, "child_tgid", j_child_tgid);
+
+    printf("%s\n", json_object_to_json_string(jobj));
+
      // TODO this only shows the parent, until child exec()s; this ends up
      // showing the same pids for parent and child..
      //printf("%s %s\n", proc_get_exe_path(event->event_data.fork.parent_pid),
