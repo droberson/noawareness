@@ -6,6 +6,7 @@
 
 #include <json-c/json.h>
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -36,6 +37,17 @@
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
+double timestamp() {
+    double          result;
+    struct timeval  tv;
+
+    // TODO error check
+    gettimeofday(&tv, NULL);
+
+    result = tv.tv_sec + tv.tv_usec * 0.0000001;
+    return result;
+}
+
 /*
  * for the handle_PROC_EVENT_* functions, see linux/cn_proc.h for structure
  * of events
@@ -48,12 +60,12 @@
  * pid_t child_tgid
  */
 void handle_PROC_EVENT_FORK(struct proc_event *event) {
-    // TODO timestamp
     char                *exepath;
     char                *md5;
     struct proc_status  status;
 
     json_object         *jobj = json_object_new_object();
+    json_object         *j_timestamp = json_object_new_double(timestamp());
     json_object         *j_exepath;
     json_object         *j_name;
     json_object         *j_uid;
@@ -87,6 +99,7 @@ void handle_PROC_EVENT_FORK(struct proc_event *event) {
     j_child_tgid  = json_object_new_int(event->event_data.fork.child_tgid);
     j_cmdline     = json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "process_name", j_name);
     json_object_object_add(jobj, "exepath", j_exepath);
@@ -114,9 +127,9 @@ void handle_PROC_EVENT_FORK(struct proc_event *event) {
  * pid_t process_tgid
  */
 void handle_PROC_EVENT_EXEC(struct proc_event *event) {
-    //TODO add timestamp
     char        *exefile;
     json_object *jobj = json_object_new_object();
+    json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_exepath;
     json_object *j_process_pid;
     json_object *j_process_tgid;
@@ -131,6 +144,7 @@ void handle_PROC_EVENT_EXEC(struct proc_event *event) {
     j_cmdline      = json_object_new_string(proc_get_cmdline(event->event_data.exec.process_pid));
     j_md5          = json_object_new_string(md5_digest_file(exefile));
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_process_pid);
     json_object_object_add(jobj, "tgid", j_process_tgid);
@@ -150,8 +164,8 @@ void handle_PROC_EVENT_EXEC(struct proc_event *event) {
  * pid_t parent_tgid
  */
 void handle_PROC_EVENT_EXIT(struct proc_event *event) {
-    // TODO timestamp
     json_object *jobj = json_object_new_object();
+    json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_exitcode;
@@ -167,6 +181,7 @@ void handle_PROC_EVENT_EXIT(struct proc_event *event) {
     j_parent_pid  = json_object_new_int(event->event_data.exit.parent_pid);
     j_parent_tgid = json_object_new_int(event->event_data.exit.parent_tgid);
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -185,9 +200,9 @@ void handle_PROC_EVENT_EXIT(struct proc_event *event) {
  * union { u32 euid; u32 egid } e
  */
 void handle_PROC_EVENT_UID(struct proc_event *event) {
-    // TODO timestamp
     // TODO lookup pid exefile/name, hash, ...
     json_object *jobj = json_object_new_object();
+    json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_ruid;
@@ -199,6 +214,7 @@ void handle_PROC_EVENT_UID(struct proc_event *event) {
     j_ruid = json_object_new_int(event->event_data.id.r.ruid);
     j_euid = json_object_new_int(event->event_data.id.e.euid);
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -209,9 +225,9 @@ void handle_PROC_EVENT_UID(struct proc_event *event) {
 }
 
 void handle_PROC_EVENT_GID(struct proc_event *event) {
-    // TODO timestamp
     // TODO lookup pid exefile/name, hash, ...
     json_object *jobj = json_object_new_object();
+    json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_rgid;
@@ -223,6 +239,7 @@ void handle_PROC_EVENT_GID(struct proc_event *event) {
     j_rgid = json_object_new_int(event->event_data.id.r.rgid);
     j_egid = json_object_new_int(event->event_data.id.e.egid);
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -239,9 +256,9 @@ void handle_PROC_EVENT_GID(struct proc_event *event) {
  * pid_t tracer_tgid
  */
 void handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-    // TODO timestamp
     // TODO hash of tracer, exefila/name, etc...
     json_object *jobj = json_object_new_object();
+    json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_tracer_pid;
@@ -253,6 +270,7 @@ void handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     j_tracer_pid  = json_object_new_int(event->event_data.ptrace.tracer_pid);
     j_tracer_tgid = json_object_new_int(event->event_data.ptrace.tracer_tgid);
 
+    json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -350,7 +368,7 @@ int main(int argc, char *argv[]) {
     struct cn_msg           *cn_message;
     char                    buf[1024];
 
-
+    printf("%f\n", timestamp());
     /* Create netlink socket */
     netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
     if (netlink == -1) {
