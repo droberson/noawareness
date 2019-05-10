@@ -4,7 +4,7 @@
 
 #include <openssl/md5.h>
 
-#include "md5_common.h"
+#include "md5.h"
 
 char *md5_digest_file(const char *path) {
     unsigned char   c[MD5_DIGEST_LENGTH];

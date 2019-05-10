@@ -19,9 +19,9 @@
 #include <linux/connector.h>
 #include <linux/cn_proc.h>
 
-#include "md5_common.h"
-#include "proc_common.h"
-#include "string_common.h"
+#include "md5.h"
+#include "proc.h"
+#include "string.h"
 
 // TODO flood protection; if someone runs a repetitive shell script or similar,
     // don't send the logs over and over.

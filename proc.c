@@ -8,8 +8,8 @@
 
 #include <linux/limits.h>
 
-#include "proc_common.h"
-#include "string_common.h"
+#include "proc.h"
+#include "string.h"
 
 char *proc_get_exe_path(pid_t pid) {
     char        exe_path[PATH_MAX];
