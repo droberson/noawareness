@@ -374,7 +374,7 @@ void handle_message(struct cn_msg *cn_message) {
             break;
 
         case PROC_EVENT_PTRACE:
-            msg = handle_PROC_EVENT_UID(event);
+            msg = handle_PROC_EVENT_PTRACE(event);
             sockprintf(sock, "%s\r\n", msg);
             break;
 
