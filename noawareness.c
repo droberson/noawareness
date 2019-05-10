@@ -409,6 +409,7 @@ int main(int argc, char *argv[]) {
     struct nlmsghdr         *nl_header;
     struct cn_msg           *cn_message;
     char                    buf[1024];
+    enum proc_cn_mcast_op   *mcop_msg;
 
     /* Create netlink socket */
     netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
@@ -418,6 +419,10 @@ int main(int argc, char *argv[]) {
             strerror(errno));
         return EXIT_FAILURE;
     }
+
+    nl_kernel.nl_family = AF_NETLINK;
+    nl_kernel.nl_groups = CN_IDX_PROC;
+    nl_kernel.nl_pid    = 1;
 
     nl_userland.nl_family = AF_NETLINK;
     nl_userland.nl_groups = CN_IDX_PROC;
@@ -432,6 +437,8 @@ int main(int argc, char *argv[]) {
     memset(buf, 0x00, sizeof(buf));
     nl_header = (struct nlmsghdr *)buf;
     cn_message = (struct cn_msg *)NLMSG_DATA(nl_header);
+    mcop_msg = (enum proc_cn_mcast_op *)&cn_message->data[0];
+    *mcop_msg = PROC_CN_MCAST_LISTEN;
 
     cn_message->id.idx = CN_IDX_PROC;
     cn_message->id.val = CN_VAL_PROC;
