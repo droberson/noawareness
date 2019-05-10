@@ -187,8 +187,6 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
  * pid_t process_tgid
  * u32 exit_code
  * u32 exit_signal
- * pid_t parent_pid
- * pid_t parent_tgid
  */
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     char        *msg;
@@ -198,23 +196,17 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     json_object *j_tgid;
     json_object *j_exitcode;
     json_object *j_signal;
-    json_object *j_parent_pid;
-    json_object *j_parent_tgid;
     json_object *j_event_type = json_object_new_string("exit");
 
     j_pid         = json_object_new_int(event->event_data.exit.process_pid);
     j_tgid        = json_object_new_int(event->event_data.exit.process_tgid);
     j_exitcode    = json_object_new_int(event->event_data.exit.exit_code);
     j_signal      = json_object_new_int(event->event_data.exit.exit_signal);
-    j_parent_pid  = json_object_new_int(event->event_data.exit.parent_pid);
-    j_parent_tgid = json_object_new_int(event->event_data.exit.parent_tgid);
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
-    json_object_object_add(jobj, "parent_pid", j_parent_pid);
-    json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
     json_object_object_add(jobj, "exit_code", j_exitcode);
     json_object_object_add(jobj, "signal", j_signal);
 
