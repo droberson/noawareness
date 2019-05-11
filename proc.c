@@ -9,7 +9,7 @@
 #include <linux/limits.h>
 
 #include "proc.h"
-#include "string.h"
+#include "string_common.h"
 
 
 char *proc_get_exe_path(pid_t pid) {
