@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include <json-c/json.h>
 
@@ -19,6 +18,7 @@
 #include <linux/connector.h>
 #include <linux/cn_proc.h>
 
+#include "net.h"
 #include "md5.h"
 #include "proc.h"
 #include "string.h"
@@ -42,20 +42,6 @@
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
 int sock;
-
-int sockprintf(int s, const char *fmt, ...) {
-    int     n;
-    char    buf[8192];
-    va_list vl;
-
-    memset(buf, 0x00, sizeof(buf));
-
-    va_start(vl, fmt);
-    n = vsnprintf(buf, sizeof(buf), fmt, vl);
-    va_end(vl);
-
-    return send(s, buf, n, 0);
-}
 
 double timestamp() {
     double          result;
