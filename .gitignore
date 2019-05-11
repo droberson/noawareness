@@ -1,3 +1,4 @@
 noawareness
+test_*
 *.o
 *.swp

@@ -13,5 +13,9 @@ noawareness: $(OFILES)
 	$(CC) -c $(CFLAGS) $<
 
 clean:
-	rm -rf *.o *~ *.core noawareness
+	rm -rf *.o *~ *.core test_* noawareness
 
+tests:
+	gcc -c test-endswith.c
+	gcc -o test_endswith string.o test-endswith.c
+	./test_endswith
