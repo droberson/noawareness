@@ -472,7 +472,7 @@ int main(int argc, char *argv[]) {
     //sendto(sock, "lollol\r\n", 8, 0, (struct sockaddr *)&s_addr, sizeof(s_addr));
     connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
 
-    while (1) {
+    for(;;) {
         int                 recv_length;
         socklen_t           nl_kernel_len;
         struct nlmsghdr     *nlh;
@@ -518,8 +518,8 @@ int main(int argc, char *argv[]) {
             } else {
                 nlh = NLMSG_NEXT(nlh, recv_length);
             }
-        }
-    }
+        } /* while(NLMSG_OK(nlh, recv_length) */
+    } /* for(;;) */
 
     /* Shouldn't ever get here */
     close(netlink);
