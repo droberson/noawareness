@@ -11,6 +11,7 @@
 #include "proc.h"
 #include "string.h"
 
+
 char *proc_get_exe_path(pid_t pid) {
     char        exe_path[PATH_MAX];
     static char real_path[PATH_MAX];
@@ -25,6 +26,7 @@ char *proc_get_exe_path(pid_t pid) {
 
     return real_path;
 }
+
 char *proc_get_cmdline(pid_t pid) {
     // had to do it this way because /proc/X/cmdline stores arguments with
     // a null as a separator instead of spaces or whatever. can probably
