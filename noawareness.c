@@ -94,7 +94,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
 
     // TODO if this is deleted, read the map file
-    md5 = (strstr(exepath, "(deleted)") == NULL) ? md5_digest_file(exepath) : "deleted";
+    md5 = endswith(exepath, "(deleted)") ? md5_digest_file(exepath) : "deleted";
 
     j_exepath     = json_object_new_string(exepath);
     j_name        = json_object_new_string(status.name);

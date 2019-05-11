@@ -4,5 +4,6 @@
 #include <stdbool.h>
 
 bool startswith(const char *, const char *);
+bool endswith(const char *, const char *);
 
 #endif /* _STRING_COMMON_H */
