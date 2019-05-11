@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g -Wall
-OFILES=noawareness.o md5.o string.o proc.o
+OFILES=noawareness.o md5.o string.o proc.o net.o
 LFLAGS=-static
 LIBS=-ljson-c -lssl -lcrypto
 
