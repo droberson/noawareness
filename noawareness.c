@@ -21,7 +21,7 @@
 #include "net.h"
 #include "md5.h"
 #include "proc.h"
-#include "string.h"
+#include "string_common.h"
 
 // TODO flood protection; if someone runs a repetitive shell script or similar,
     // don't send the logs over and over.
@@ -35,6 +35,8 @@
 // TODO environment?? /proc/X/environ
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
+// TODO add listener to accept commands from server.
+    // if server doesnt know what a file is, send it a copy
 // TODO add inotify-watch stuff
     // writes to passwd, shadow, sudoers, sudoers.d, ...
 
@@ -46,14 +48,13 @@
 sock_t sock;
 
 double timestamp() {
-    double          result;
     struct timeval  tv;
 
-    // TODO error check
-    gettimeofday(&tv, NULL);
+    if (gettimeofday(&tv, NULL) == -1) {
+        return -1;
+    }
 
-    result = tv.tv_sec + tv.tv_usec * 0.0000001;
-    return result;
+    return tv.tv_sec + (tv.tv_usec * 0.0000001);
 }
 
 /*
@@ -392,7 +393,7 @@ void handle_message(struct cn_msg *cn_message) {
 // TODO clean this up.
 int main(int argc, char *argv[]) {
     int                     error;
-    int                     netlink;
+    sock_t                  netlink;
     struct sockaddr_nl      nl_userland, nl_kernel;
     struct nlmsghdr         *nl_header;
     struct cn_msg           *cn_message;
