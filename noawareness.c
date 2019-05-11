@@ -23,21 +23,19 @@
 #include "proc.h"
 #include "string_common.h"
 
-// TODO flood protection; if someone runs a repetitive shell script or similar,
-    // don't send the logs over and over.
+// TODO map uids and gids to real names
+// TODO permissions, attributes, owner, groupships of files
 // TODO keep track of processes as they are executed to give EXIT better context
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
     // the (deleted) suffix in exepath is there
 // TODO daemonize
     // TODO pid file + watchdog script
-// TODO entropy of file.
 // TODO environment?? /proc/X/environ
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
-// TODO add listener to accept commands from server.
-    // if server doesnt know what a file is, send it a copy
 // TODO add inotify-watch stuff
+    // idk if its better to put it into one process, or two?
     // writes to passwd, shadow, sudoers, sudoers.d, ...
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
