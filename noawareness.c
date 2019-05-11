@@ -29,7 +29,6 @@
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
     // the (deleted) suffix in exepath is there
-// TODO remote logging
 // TODO daemonize
     // TODO pid file + watchdog script
 // TODO entropy of file.
@@ -41,7 +40,10 @@
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
-int sock;
+/*
+ * Globals
+ */
+sock_t sock;
 
 double timestamp() {
     double          result;
