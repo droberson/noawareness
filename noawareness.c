@@ -128,8 +128,6 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     json_object_object_add(jobj, "child_tgid", j_child_tgid);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
      // TODO this only shows the parent, until child exec()s; this ends up
      // showing the same pids for parent and child..
@@ -177,8 +175,6 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     json_object_object_add(jobj, "cmdline", j_cmdline);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
 }
 
@@ -219,8 +215,6 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     json_object_object_add(jobj, "signal", j_signal);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
 }
 
@@ -267,8 +261,6 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
     json_object_object_add(jobj, "euid", j_euid);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
 }
 
@@ -296,8 +288,6 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
     json_object_object_add(jobj, "egid", j_egid);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
 }
 
@@ -343,8 +333,6 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     json_object_object_add(jobj, "tracer_tgid", j_tracer_tgid);
 
     msg = (char *)json_object_to_json_string(jobj);
-    printf("%s\n", msg);
-
     return msg;
 }
 
@@ -415,6 +403,7 @@ void handle_message(struct cn_msg *cn_message) {
     struct proc_event   *event;
     char                *msg;
 
+    msg = NULL;
     event = (struct proc_event *)cn_message->data;
 
     switch (event->what) {
@@ -423,32 +412,26 @@ void handle_message(struct cn_msg *cn_message) {
 
         case PROC_EVENT_FORK:
             msg = handle_PROC_EVENT_FORK(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_EXEC:
             msg = handle_PROC_EVENT_EXEC(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_EXIT:
             msg = handle_PROC_EVENT_EXIT(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_UID:
             msg = handle_PROC_EVENT_UID(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_PTRACE:
             msg = handle_PROC_EVENT_PTRACE(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_GID:
             msg = handle_PROC_EVENT_GID(event);
-            sockprintf(sock, "%s\r\n", msg);
             break;
 
         case PROC_EVENT_SID:
@@ -466,6 +449,12 @@ void handle_message(struct cn_msg *cn_message) {
         default:
             printf("\nevent %d not handled yet\n", event->what);
             break;
+    }
+
+    /* If we have data to output, deal with it. */
+    if (msg != NULL) {
+	printf("%s\n", msg);
+	sockprintf(sock, "%s\r\n", msg);
     }
 }
 
