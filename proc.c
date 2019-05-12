@@ -12,6 +12,13 @@
 #include "string_common.h"
 
 
+char *proc_exe_path(pid_t pid) {
+    static char exe_path[PATH_MAX];
+
+    snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
+    return exe_path;
+}
+
 char *proc_get_exe_path(pid_t pid) {
     char        exe_path[PATH_MAX];
     static char real_path[PATH_MAX];
