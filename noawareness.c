@@ -68,12 +68,13 @@ char    *pidfile = "/var/run/noawareness.pid";
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     char                *exepath;
+    bool                deleted;
     char                *md5;
-    char                *msg;
     struct proc_status  status;
     json_object         *jobj = json_object_new_object();
     json_object         *j_timestamp = json_object_new_double(timestamp());
     json_object         *j_exepath;
+    json_object         *j_deleted;
     json_object         *j_name;
     json_object         *j_uid;
     json_object         *j_euid;
@@ -90,10 +91,28 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     status = proc_get_status(event->event_data.fork.parent_pid);
     exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
 
-    // TODO if this is deleted, read the map file
-    md5 = endswith(exepath, "(deleted)") ? md5_digest_file(exepath) : "deleted";
+    /* If files are running, but have been deleted on disk, the
+     * symbolic link in /proc/PID/exe has (deleted) appended to
+     * it. This can still be opened and hashed with original values:
+     *
+     * % cp /usr/bin/yes blah
+     * % ./blah >/dev/null &
+     * [1] 227
+     * % ls /proc/227/exe -l
+     * lrwxrwxrwx 1 d d 0 May 12 11:53 /proc/227/exe -> /home/d/blah*
+     * % rm blah
+     * % ls /proc/22711/exe -l
+     * lrwxrwxrwx 1 d d 0 May 12 11:53 /proc/227/exe -> '/home/d/blah (deleted)'
+     * % md5sum /proc/227/exe
+     * 33d8c8e092458e35ed45a709aa64a99b  /proc/227/exe
+     * % md5sum /usr/bin/yes
+     * 33d8c8e092458e35ed45a709aa64a99b  /usr/bin/yes
+     */
+    deleted = endswith(exepath, "(deleted)");
+    md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
 
     j_exepath     = json_object_new_string(exepath);
+    j_deleted     = json_object_new_boolean(deleted);
     j_name        = json_object_new_string(status.name);
     j_uid         = json_object_new_int(status.uid);
     j_euid        = json_object_new_int(status.euid);
@@ -110,6 +129,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "process_name", j_name);
     json_object_object_add(jobj, "exepath", j_exepath);
+    json_object_object_add(jobj, "deleted", j_deleted);
     json_object_object_add(jobj, "cmdline", j_cmdline);
     json_object_object_add(jobj, "uid", j_uid);
     json_object_object_add(jobj, "euid", j_euid);
@@ -121,10 +141,8 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     json_object_object_add(jobj, "child_pid", j_child_pid);
     json_object_object_add(jobj, "child_tgid", j_child_tgid);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
-     // TODO this only shows the parent, until child exec()s; this ends up
-     // showing the same pids for parent and child..
+    return (char *)json_object_to_json_string(jobj);
+     // TODO parent and child are same data when this event is caught.
      //printf("%s %s\n", proc_get_exe_path(event->event_data.fork.parent_pid),
 	//	       proc_get_cmdline(event->event_data.fork.child_pid));
 }
@@ -143,7 +161,6 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     char        *exefile;
-    char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_exepath;
@@ -168,8 +185,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     json_object_object_add(jobj, "exename", j_exepath);
     json_object_object_add(jobj, "cmdline", j_cmdline);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
+    return (char *)json_object_to_json_string(jobj);
 }
 
 /* handle_PROC_EVENT_EXIT() - Handle PROC_EVENT_EXIT events.
@@ -187,7 +203,6 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
  *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
-    char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
@@ -208,8 +223,7 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     json_object_object_add(jobj, "exit_code", j_exitcode);
     json_object_object_add(jobj, "signal", j_signal);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
+    return (char *)json_object_to_json_string(jobj);
 }
 
 /* handle_PROC_EVENT_UID() - Handle PROC_EVENT_UID events.
@@ -233,7 +247,6 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_UID(struct proc_event *event) {
     // TODO lookup pid exefile/name, hash, ...
-    char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
@@ -254,13 +267,11 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
     json_object_object_add(jobj, "ruid", j_ruid);
     json_object_object_add(jobj, "euid", j_euid);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
+    return (char *)json_object_to_json_string(jobj);
 }
 
 char *handle_PROC_EVENT_GID(struct proc_event *event) {
     // TODO lookup pid exefile/name, hash, ...
-    char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
@@ -281,8 +292,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
     json_object_object_add(jobj, "rgid", j_rgid);
     json_object_object_add(jobj, "egid", j_egid);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
+    return (char *)json_object_to_json_string(jobj);
 }
 
 /* handle_PROC_EVENT_PTRACE() - Handle PROC_EVENT_PTRACE events.
@@ -305,7 +315,6 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     // TODO hash of tracer, exefile/name, etc...
-    char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
     json_object *j_pid;
@@ -326,8 +335,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     json_object_object_add(jobj, "tracer_pid", j_tracer_pid);
     json_object_object_add(jobj, "tracer_tgid", j_tracer_tgid);
 
-    msg = (char *)json_object_to_json_string(jobj);
-    return msg;
+    return (char *)json_object_to_json_string(jobj);
 }
 
 /* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
@@ -447,7 +455,7 @@ void handle_message(struct cn_msg *cn_message) {
 
     /* If we have data to output, deal with it. */
     if (msg != NULL) {
-	printf("%s\n", msg);
+	if (!daemonize) printf("%s\n", msg);
 	sockprintf(sock, "%s\r\n", msg);
     }
 }
