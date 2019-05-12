@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <limits.h>
 
 #include <json-c/json.h>
 
@@ -24,14 +25,10 @@
 #include "time_common.h"
 #include "string_common.h"
 
-// TODO add hostname
 // TODO syslog
 // TODO map uids and gids to real names
 // TODO permissions, attributes, owner, groupships of files
 // TODO keep track of processes as they are executed to give EXIT better context
-// TODO deal with (deleted) files as exefile
-    // TODO read /proc/X/maps, get actual map's md5sum. this should work if
-    // the (deleted) suffix in exepath is there
 // TODO environment?? /proc/X/environ
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
@@ -47,6 +44,7 @@
 sock_t  sock;
 bool    daemonize = false;
 char    *pidfile = "/var/run/noawareness.pid";
+char    hostname[HOST_NAME_MAX];
 
 
 /* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
@@ -73,6 +71,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     struct proc_status  status;
     json_object         *jobj = json_object_new_object();
     json_object         *j_timestamp = json_object_new_double(timestamp());
+    json_object         *j_hostname = json_object_new_string(hostname);
     json_object         *j_exepath;
     json_object         *j_deleted;
     json_object         *j_name;
@@ -94,6 +93,8 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     /* If files are running, but have been deleted on disk, the
      * symbolic link in /proc/PID/exe has (deleted) appended to
      * it. This can still be opened and hashed with original values:
+     *
+     * Hashing this link vs the real path on disk seems to be faster.
      *
      * % cp /usr/bin/yes blah
      * % ./blah >/dev/null &
@@ -126,6 +127,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     j_cmdline     = json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "process_name", j_name);
     json_object_object_add(jobj, "exepath", j_exepath);
@@ -163,6 +165,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     char        *exefile;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
+    json_object *j_hostname = json_object_new_string(hostname);
     json_object *j_exepath;
     json_object *j_process_pid;
     json_object *j_process_tgid;
@@ -178,6 +181,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     j_md5          = json_object_new_string(md5_digest_file(exefile));
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_process_pid);
     json_object_object_add(jobj, "tgid", j_process_tgid);
@@ -205,6 +209,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
+    json_object *j_hostname = json_object_new_string(hostname);
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_exitcode;
@@ -217,6 +222,7 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     j_signal      = json_object_new_int(event->event_data.exit.exit_signal);
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -249,6 +255,7 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
     // TODO lookup pid exefile/name, hash, ...
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
+    json_object *j_hostname = json_object_new_string(hostname);
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_ruid;
@@ -261,6 +268,7 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
     j_euid = json_object_new_int(event->event_data.id.e.euid);
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -274,6 +282,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
     // TODO lookup pid exefile/name, hash, ...
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
+    json_object *j_hostname = json_object_new_string(hostname);
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_rgid;
@@ -286,6 +295,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
     j_egid = json_object_new_int(event->event_data.id.e.egid);
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -317,6 +327,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     // TODO hash of tracer, exefile/name, etc...
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
+    json_object *j_hostname = json_object_new_string(hostname);
     json_object *j_pid;
     json_object *j_tgid;
     json_object *j_tracer_pid;
@@ -329,6 +340,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     j_tracer_tgid = json_object_new_int(event->event_data.ptrace.tracer_tgid);
 
     json_object_object_add(jobj, "timestamp", j_timestamp);
+    json_object_object_add(jobj, "hostname", j_hostname);
     json_object_object_add(jobj, "event_type", j_event_type);
     json_object_object_add(jobj, "pid", j_pid);
     json_object_object_add(jobj, "tgid", j_tgid);
@@ -511,6 +523,11 @@ int main(int argc, char *argv[]) {
 	default:
 	    usage(argv[0]);
 	}
+    }
+
+    if (gethostname(hostname, sizeof(hostname)) == -1) {
+	fprintf(stderr, "gethostname(): %s\n", strerror(errno));
+	return EXIT_FAILURE;
     }
 
     if (daemonize) {
