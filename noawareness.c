@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include <json-c/json.h>
@@ -23,14 +24,14 @@
 #include "time_common.h"
 #include "string_common.h"
 
+// TODO add hostname
+// TODO syslog
 // TODO map uids and gids to real names
 // TODO permissions, attributes, owner, groupships of files
 // TODO keep track of processes as they are executed to give EXIT better context
 // TODO deal with (deleted) files as exefile
     // TODO read /proc/X/maps, get actual map's md5sum. this should work if
     // the (deleted) suffix in exepath is there
-// TODO daemonize
-    // TODO pid file + watchdog script
 // TODO environment?? /proc/X/environ
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
@@ -43,7 +44,9 @@
 /*
  * Globals
  */
-sock_t sock;
+sock_t  sock;
+bool    daemonize = false;
+char    *pidfile = "/var/run/noawareness.pid";
 
 
 /* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
@@ -449,9 +452,34 @@ void handle_message(struct cn_msg *cn_message) {
     }
 }
 
+void write_pid_file(const char *path, pid_t pid) {
+    FILE        *pidfile;
+
+    pidfile = fopen(path, "w");
+    if (pidfile == NULL) {
+	fprintf(stderr, "Unable to open PID file %s: %s\n",
+		path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+
+    fprintf(pidfile, "%d", pid);
+    fclose(pidfile);
+}
+
+void usage(const char *progname) {
+    fprintf(stderr, "usage: %s [-h?]\n\n", progname);
+    fprintf(stderr, "    -h/-?     - print this menu and exit.\n");
+    fprintf(stderr, "    -d        - Daemonize. Default: %s\n",
+	    (daemonize == true) ? "yes" : "no");
+    fprintf(stderr, "    -p <path> - Path to PID file. Default: %s\n", pidfile);
+
+    exit(EXIT_FAILURE);
+}
 
 int main(int argc, char *argv[]) {
+    int                     opt;
     int                     error;
+    pid_t                   pid;
     sock_t                  netlink;
     struct sockaddr_nl      nl_userland, nl_kernel;
     struct nlmsghdr         *nl_header;
@@ -459,7 +487,34 @@ int main(int argc, char *argv[]) {
     char                    buf[1024];
     enum proc_cn_mcast_op   *mcop_msg;
 
-    // TODO getopt
+
+    while((opt = getopt(argc, argv, "dp:h?")) != -1) {
+	switch (opt) {
+	case 'd': /* Daemonize */
+	    daemonize = (daemonize == true) ? false : true;
+	    break;
+	case 'p': /* PID file location */
+	    pidfile = optarg;
+	    break;
+
+	/* All of these effectively call usage(), so roll them over */
+	case 'h':
+	case '?':
+	default:
+	    usage(argv[0]);
+	}
+    }
+
+    if (daemonize) {
+	pid = fork();
+	if (pid < 0) {
+	    fprintf(stderr, "fork(): %s\n", strerror(errno));
+	    exit(EXIT_FAILURE);
+	} else if (pid > 0) {
+	    write_pid_file(pidfile, pid);
+	    exit(EXIT_SUCCESS);
+	}
+    }
 
     /* Create netlink socket */
     netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
