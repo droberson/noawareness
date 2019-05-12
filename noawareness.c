@@ -37,7 +37,7 @@
 // TODO add inotify-watch stuff
     // idk if its better to put it into one process, or two?
     // writes to passwd, shadow, sudoers, sudoers.d, ...
-
+// TODO watch pcap too
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
 /*
@@ -55,23 +55,28 @@ double timestamp() {
     return tv.tv_sec + (tv.tv_usec * 0.0000001);
 }
 
-/*
- * for the handle_PROC_EVENT_* functions, see linux/cn_proc.h for structure
- * of events
- */
-
-/*
- * pid_t parent_pid
- * pid_t parent_tgid
- * pid_t child_pid
- * pid_t child_tgid
+/* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
+ *
+ * The following are available for this event:
+ *  - pid_t parent_pid
+ *  - pid_t parent_tgid
+ *  - pid_t child_pid
+ *  - pid_t child_tgid
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event.
+ *
+ * TODO
+ * - Deal with parent_pid and child_pid being the same somehow (see below)
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     char                *exepath;
     char                *md5;
     char                *msg;
     struct proc_status  status;
-
     json_object         *jobj = json_object_new_object();
     json_object         *j_timestamp = json_object_new_double(timestamp());
     json_object         *j_exepath;
@@ -132,9 +137,17 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
 	//	       proc_get_cmdline(event->event_data.fork.child_pid));
 }
 
-/*
- * pid_t process_pid
- * pid_t process_tgid
+/* handle_PROC_EVENT_EXEC() - Handle PROC_EVENT_EXEC events.
+ *
+ * The following are available for this event:
+ *  - pid_t process_pid
+ *  - pid_t process_tgid
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     char        *exefile;
@@ -169,11 +182,19 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
     return msg;
 }
 
-/*
- * pid_t process_pid
- * pid_t process_tgid
- * u32 exit_code
- * u32 exit_signal
+/* handle_PROC_EVENT_EXIT() - Handle PROC_EVENT_EXIT events.
+ *
+ * The following are available for this event:
+ *  - pid_t process_pid
+ *  - pid_t process_tgid
+ *  - u32 exit_code
+ *  - u32 exit_signal
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     char        *msg;
@@ -203,11 +224,24 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
     return msg;
 }
 
-/*
- * pid_t process_ppid
- * pid_t process_tgid
- * union { u32 ruid; u32 rgid } r
- * union { u32 euid; u32 egid } e
+/* handle_PROC_EVENT_UID() - Handle PROC_EVENT_UID events.
+ * handle_PROC_EVENT_GID() - Handle PROC_EVENT_GID events.
+ *
+ * The following are availabie for this event:
+ *  - pid_t process_ppid
+ *  - pid_t process_tgid
+ *  - union { u32 ruid; u32 rgid } r
+ *  - union { u32 euid; u32 egid } e
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event
+ *
+ * Note:
+ *     The handle_PROC_EVENT_UID and handle_PROC_EVENT_GID functions
+ *     are nearly identical.
  */
 char *handle_PROC_EVENT_UID(struct proc_event *event) {
     // TODO lookup pid exefile/name, hash, ...
@@ -267,14 +301,26 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
     return msg;
 }
 
-/*
- * pid_t process_pid
- * pid_t process_tgid
- * pid_t tracer_pid
- * pid_t tracer_tgid
+/* handle_PROC_EVENT_PTRACE() - Handle PROC_EVENT_PTRACE events.
+ *
+ * The following are availabie for this event:
+ *  - pid_t process_ppid
+ *  - pid_t process_tgid
+ *  - pid_t tracer_pid
+ *  - pid_t tracer_tgid
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event
+ *
+ * Note:
+ *     This is triggered when setsid() happens. I am not sure of the
+ *     forensic implications of this event, so it currently does nothing.
  */
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-    // TODO hash of tracer, exefila/name, etc...
+    // TODO hash of tracer, exefile/name, etc...
     char        *msg;
     json_object *jobj = json_object_new_object();
     json_object *j_timestamp = json_object_new_double(timestamp());
@@ -302,28 +348,63 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
     return msg;
 }
 
-/* this happens when setsid() happens
- * pid_t process_pid
- * pid_t process_tgid
+/* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
+ *
+ * The following are availabie for this event:
+ *  - pid_t process_ppid
+ *  - pid_t process_tgid
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event
+ *
+ * Note:
+ *     This is triggered when setsid() happens. I am not sure of the
+ *     forensic implications of this event, so it currently does nothing.
  */
 void handle_PROC_EVENT_SID(struct proc_event *event) {
     return;
 }
 
-/*
- * pid_t process_pid
- * pid_t process_tgid
- * char comm[16]
+/* handle_PROC_EVENT_COMM() - Handle PROC_EVENT_COMM events.
+ *
+ * The following are availabie for this event:
+ *  - pid_t process_ppid
+ *  - pid_t process_tgid
+ *  - char comm[16]
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event
+ *
+ * Note:
+ *     I am not sure what exactly triggers this right now, or the forensic
+ *     implications of these events. Despite this, there seem to be quite
+ *     a few of these events.
  */
 void handle_PROC_EVENT_COMM(struct proc_event *event) {
     return;
 }
 
-/*
- * pid_t process_pid
- * pid_t process_tgid
- * pid_t parent_pid
- * pid_t parent_tgid
+/* handle_PROC_EVENT_COREDUMP() - Handle PROC_EVENT_COREDUMP events.
+ *
+ * The following are availabie for this event:
+ *  - pid_t process_ppid
+ *  - pid_t process_tgid
+ *  - pid_t parent_pid
+ *  - pid_t parent_tgid
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event
+ *
+ * TODO this.
  */
 void handle_PROC_EVENT_COREDUMP(struct proc_event *event) {
     return;
@@ -388,7 +469,7 @@ void handle_message(struct cn_msg *cn_message) {
     }
 }
 
-// TODO clean this up.
+
 int main(int argc, char *argv[]) {
     int                     error;
     sock_t                  netlink;
@@ -397,6 +478,8 @@ int main(int argc, char *argv[]) {
     struct cn_msg           *cn_message;
     char                    buf[1024];
     enum proc_cn_mcast_op   *mcop_msg;
+
+    // TODO getopt
 
     /* Create netlink socket */
     netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
@@ -447,7 +530,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    /* create udp socket for sending the logs */
+    /* Create udp socket for sending the logs */
     struct sockaddr_in  s_addr;
     //struct hostent      *server;
     sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -467,7 +550,8 @@ int main(int argc, char *argv[]) {
     s_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     s_addr.sin_port = htons(55555);
 
-    //sendto(sock, "lollol\r\n", 8, 0, (struct sockaddr *)&s_addr, sizeof(s_addr));
+    /* connect() so you dont have to use sendto() */
+    // TODO error checking
     connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
 
     for(;;) {
@@ -521,7 +605,7 @@ int main(int argc, char *argv[]) {
 
     /* Shouldn't ever get here */
     close(netlink);
+    close(sock);
 
     return EXIT_SUCCESS;
 }
-
