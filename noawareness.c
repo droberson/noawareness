@@ -6,7 +6,6 @@
 
 #include <json-c/json.h>
 
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -21,6 +20,7 @@
 #include "net.h"
 #include "md5.h"
 #include "proc.h"
+#include "time_common.h"
 #include "string_common.h"
 
 // TODO map uids and gids to real names
@@ -45,15 +45,6 @@
  */
 sock_t sock;
 
-double timestamp() {
-    struct timeval  tv;
-
-    if (gettimeofday(&tv, NULL) == -1) {
-        return -1;
-    }
-
-    return tv.tv_sec + (tv.tv_usec * 0.0000001);
-}
 
 /* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
  *
