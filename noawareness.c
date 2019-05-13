@@ -10,6 +10,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/inotify.h>
+#include <sys/select.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -29,7 +31,19 @@
 // TODO map uids and gids to real names
 // TODO permissions, attributes, owner, groupships of files
 // TODO keep track of processes as they are executed to give EXIT better context
+   // This will need something like 'ps' to get initial list of processes so
+   // we have data for processes that have been running longer than this program
 // TODO environment?? /proc/X/environ
+   // This is a good idea, because there are a lot of neat things to glean from
+   // a processes environment. The downside is that environments can get quite
+   // large, so logging this every time is kind of insane.
+     // daniel@stingray ~ % env |wc -c
+     // 3203
+     // daniel@stingray ~ % env |gzip -f - |wc -c
+     // 1294
+     // daniel@stingray ~ % env |gzip -f - |base64 |wc -c
+     // 1751  <- need it encoded so it doesnt jack up formatting.
+
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
 // TODO add inotify-watch stuff
@@ -496,18 +510,60 @@ void usage(const char *progname) {
     exit(EXIT_FAILURE);
 }
 
+void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
+    int                 recv_length;
+    socklen_t           nl_kernel_len;
+    struct nlmsghdr     *nlh;
+    char                buf[1024];
+
+    memset(buf, 0x00, sizeof(buf));
+    nl_kernel_len = sizeof(nl_kernel);
+
+    recv_length = recvfrom(netlink,
+			   buf,
+			   sizeof(buf),
+			   0,
+			   (struct sockaddr *)&nl_kernel,
+			   &nl_kernel_len);
+    nlh = (struct nlmsghdr *)buf;
+
+    if ((recv_length < 1) || (nl_kernel.nl_pid != 0))
+	return;
+
+    while (NLMSG_OK(nlh, recv_length)) {
+	cn_message = NLMSG_DATA(nlh);
+
+	if ((nlh->nlmsg_type == NLMSG_NOOP) || (nlh->nlmsg_type == NLMSG_ERROR))
+	    continue;
+
+	if (nlh->nlmsg_type == NLMSG_OVERRUN)
+	    break;
+
+	handle_message(cn_message);
+
+	if (nlh->nlmsg_type == NLMSG_DONE) {
+	    break;
+	} else {
+	    nlh = NLMSG_NEXT(nlh, recv_length);
+	}
+    }
+}
+
 int main(int argc, char *argv[]) {
     int                     opt;
     int                     error;
     pid_t                   pid;
     sock_t                  netlink;
+    int                     inotify;
     struct sockaddr_nl      nl_userland, nl_kernel;
     struct nlmsghdr         *nl_header;
     struct cn_msg           *cn_message;
     char                    buf[1024];
     enum proc_cn_mcast_op   *mcop_msg;
+    fd_set                  fdset;
+    int                     i;
 
-
+    /* Parse CLI options */
     while((opt = getopt(argc, argv, "dp:h?")) != -1) {
 	switch (opt) {
 	case 'd': /* Daemonize */
@@ -525,11 +581,14 @@ int main(int argc, char *argv[]) {
 	}
     }
 
+    /* Get our hostname once for reporting purposes */
     if (gethostname(hostname, sizeof(hostname)) == -1) {
 	fprintf(stderr, "gethostname(): %s\n", strerror(errno));
 	return EXIT_FAILURE;
     }
 
+    /* Daemonize the process if desired
+     * TODO move this after everything gets set up */
     if (daemonize) {
 	pid = fork();
 	if (pid < 0) {
@@ -539,6 +598,13 @@ int main(int argc, char *argv[]) {
 	    write_pid_file(pidfile, pid);
 	    exit(EXIT_SUCCESS);
 	}
+    }
+
+    /* Create inotify descriptor */
+    inotify = inotify_init();
+    if (inotify == -1) {
+	fprintf(stderr, "inotify_init(): %s\n", strerror(errno));
+	return EXIT_FAILURE;
     }
 
     /* Create netlink socket */
@@ -605,62 +671,41 @@ int main(int argc, char *argv[]) {
     //    return EXIT_FAILURE;
     //}
 
-    bzero(&s_addr, sizeof(s_addr));;
+    bzero(&s_addr, sizeof(s_addr));
     s_addr.sin_family = AF_INET;
     s_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     s_addr.sin_port = htons(55555);
 
     /* connect() so you dont have to use sendto() */
-    // TODO error checking
-    connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
+    error = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
+    if (error == -1) {
+	fprintf(stderr, "connect(): %s\n", strerror(errno));
+	return EXIT_FAILURE;
+    }
 
+    /* Set up select fd set */
+    FD_ZERO(&fdset);
+    FD_SET(netlink, &fdset);
+    FD_SET(inotify, &fdset);
+
+    if (select(FD_SETSIZE, &fdset, NULL, NULL, NULL) < 0) {
+	fprintf(stderr, "select(): %s\n", strerror(errno));
+	return EXIT_FAILURE;
+    }
+
+    // TODO print startup message, add atexit() handler to log when this dies
     for(;;) {
-        int                 recv_length;
-        socklen_t           nl_kernel_len;
-        struct nlmsghdr     *nlh;
+	for(i = 0; i < FD_SETSIZE; i++) {
+	    if (FD_ISSET(i, &fdset)) {
+		if (i == inotify) {
+		    fprintf(stderr, "inotify!!!\n");
+		}
 
-        memset(buf, 0x00, sizeof(buf));
-        nl_kernel_len = sizeof(nl_kernel);
-
-        recv_length = recvfrom(netlink,
-                               buf,
-                               sizeof(buf),
-                               0,
-                               (struct sockaddr *)&nl_kernel,
-                               &nl_kernel_len);
-        nlh = (struct nlmsghdr *)buf;
-
-        if (recv_length < 1) {
-            continue;
-        }
-
-        if (nl_kernel.nl_pid != 0) {
-            continue;
-        }
-
-        while (NLMSG_OK(nlh, recv_length)) {
-            cn_message = NLMSG_DATA(nlh);
-
-            if (nlh->nlmsg_type == NLMSG_NOOP) {
-                continue;
-            }
-
-            if (nlh->nlmsg_type == NLMSG_ERROR) {
-                break;
-            }
-
-            if (nlh->nlmsg_type == NLMSG_OVERRUN) {
-                break;
-            }
-
-            handle_message(cn_message);
-
-            if (nlh->nlmsg_type == NLMSG_DONE) {
-                break;
-            } else {
-                nlh = NLMSG_NEXT(nlh, recv_length);
-            }
-        } /* while(NLMSG_OK(nlh, recv_length) */
+		if (i == netlink) {
+		    select_netlink(netlink, nl_kernel, cn_message);
+		}
+	    }
+	}
     } /* for(;;) */
 
     /* Shouldn't ever get here */
