@@ -1,5 +1,5 @@
-#ifndef _PROC_H
-#define _PROC_H 1
+#pragma once
+
 /*
 Name:   rtkit-daemon
 Umask:  0777
@@ -73,5 +73,3 @@ char *proc_exe_path(pid_t);
 char *proc_get_exe_path(pid_t);
 char *proc_get_cmdline(pid_t);
 struct proc_status proc_get_status(pid_t);
-
-#endif /* _PROC_H */
