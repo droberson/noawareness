@@ -21,15 +21,12 @@ char *proc_exe_path(pid_t pid) {
 
 char *proc_get_exe_path(pid_t pid) {
     char        exe_path[PATH_MAX];
-    static char real_path[PATH_MAX];
+    static char real_path[PATH_MAX] = {0};
 
     snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
 
-    memset(real_path, 0x00, sizeof(real_path));
-
-    if (readlink(exe_path, real_path, PATH_MAX) == -1) {
+    if (readlink(exe_path, real_path, PATH_MAX) == -1)
         fprintf(stderr, "readlink (%s): %s\n", exe_path, strerror(errno));
-    }
 
     return real_path;
 }
@@ -39,23 +36,19 @@ char *proc_get_cmdline(pid_t pid) {
     // a null as a separator instead of spaces or whatever. can probably
     // do something better
     int             fd;
-    int             i;
     char            cmdline_path[PATH_MAX];
-    static char     buf[ARG_MAX];
+    static char     buf[ARG_MAX] = {0};
     int             bytes;
 
     snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%d/cmdline", pid);
 
-    memset(buf, 0x00, sizeof(buf));
     fd = open(cmdline_path, O_RDONLY);
     bytes = read(fd, buf, sizeof(buf));
     close(fd);
 
-    for (i = 0; i < bytes - 1; i++) {
-        if (buf[i] == 0x00) {
+    for (int i = 0; i < bytes - 1; i++)
+        if (buf[i] == 0x00)
             buf[i] = ' ';
-        }
-    }
 
     return buf;
 }

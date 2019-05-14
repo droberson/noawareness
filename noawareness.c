@@ -43,13 +43,11 @@
      // 1294
      // daniel@stingray ~ % env |gzip -f - |base64 |wc -c
      // 1751  <- need it encoded so it doesnt jack up formatting.
-
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
 // TODO add inotify-watch stuff
-    // idk if its better to put it into one process, or two?
-    // writes to passwd, shadow, sudoers, sudoers.d, ...
 // TODO watch pcap too
+
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
 /*
@@ -514,9 +512,8 @@ void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn
     int                 recv_length;
     socklen_t           nl_kernel_len;
     struct nlmsghdr     *nlh;
-    char                buf[1024];
+    char                buf[1024] = {0};
 
-    memset(buf, 0x00, sizeof(buf));
     nl_kernel_len = sizeof(nl_kernel);
 
     recv_length = recvfrom(netlink,
@@ -561,7 +558,6 @@ int main(int argc, char *argv[]) {
     char                    buf[1024];
     enum proc_cn_mcast_op   *mcop_msg;
     fd_set                  fdset;
-    int                     i;
 
     /* Parse CLI options */
     while((opt = getopt(argc, argv, "dp:h?")) != -1) {
@@ -695,7 +691,7 @@ int main(int argc, char *argv[]) {
 
     // TODO print startup message, add atexit() handler to log when this dies
     for(;;) {
-	for(i = 0; i < FD_SETSIZE; i++) {
+	for(int i = 0; i < FD_SETSIZE; i++) {
 	    if (FD_ISSET(i, &fdset)) {
 		if (i == inotify) {
 		    fprintf(stderr, "inotify!!!\n");
