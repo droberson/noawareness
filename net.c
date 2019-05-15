@@ -7,13 +7,13 @@
 
 
 int sockprintf(int s, const char *fmt, ...) {
-    int     n;
-    char    buf[8192] = {0};
-    va_list vl;
+  int     n;
+  char    buf[8192] = {0};
+  va_list vl;
 
-    va_start(vl, fmt);
-    n = vsnprintf(buf, sizeof(buf), fmt, vl);
-    va_end(vl);
+  va_start(vl, fmt);
+  n = vsnprintf(buf, sizeof(buf), fmt, vl);
+  va_end(vl);
 
-    return send(s, buf, n, 0);
+  return send(s, buf, n, 0);
 }
