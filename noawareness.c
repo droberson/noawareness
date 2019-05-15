@@ -6,8 +6,6 @@
 #include <string.h>
 #include <limits.h>
 
-#include <json-c/json.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/inotify.h>
@@ -24,6 +22,7 @@
 #include "net.h"
 #include "md5.h"
 #include "proc.h"
+#include "netlink_events.h"
 #include "time_common.h"
 #include "string_common.h"
 
@@ -58,374 +57,10 @@ bool    daemonize = false;
 char    *pidfile = "/var/run/noawareness.pid";
 char    hostname[HOST_NAME_MAX];
 
-
-/* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
- *
- * The following are available for this event:
- *  - pid_t parent_pid
- *  - pid_t parent_tgid
- *  - pid_t child_pid
- *  - pid_t child_tgid
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event.
- *
- * TODO
- * - Deal with parent_pid and child_pid being the same somehow (see below)
- */
-char *handle_PROC_EVENT_FORK(struct proc_event *event) {
-    char                *exepath;
-    bool                deleted;
-    char                *md5;
-    struct proc_status  status;
-    json_object         *jobj = json_object_new_object();
-    json_object         *j_timestamp = json_object_new_double(timestamp());
-    json_object         *j_hostname = json_object_new_string(hostname);
-    json_object         *j_exepath;
-    json_object         *j_deleted;
-    json_object         *j_name;
-    json_object         *j_uid;
-    json_object         *j_euid;
-    json_object         *j_gid;
-    json_object         *j_egid;
-    json_object         *j_md5;
-    json_object         *j_parent_pid;
-    json_object         *j_parent_tgid;
-    json_object         *j_child_pid;
-    json_object         *j_child_tgid;
-    json_object         *j_cmdline;
-    json_object         *j_event_type = json_object_new_string("fork");
-
-    status = proc_get_status(event->event_data.fork.parent_pid);
-    exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
-
-    /* If files are running, but have been deleted on disk, the
-     * symbolic link in /proc/PID/exe has (deleted) appended to
-     * it. This can still be opened and hashed with original values:
-     *
-     * Hashing this link vs the real path on disk seems to be faster.
-     *
-     * % cp /usr/bin/yes blah
-     * % ./blah >/dev/null &
-     * [1] 227
-     * % ls /proc/227/exe -l
-     * lrwxrwxrwx 1 d d 0 May 12 11:53 /proc/227/exe -> /home/d/blah*
-     * % rm blah
-     * % ls /proc/22711/exe -l
-     * lrwxrwxrwx 1 d d 0 May 12 11:53 /proc/227/exe -> '/home/d/blah (deleted)'
-     * % md5sum /proc/227/exe
-     * 33d8c8e092458e35ed45a709aa64a99b  /proc/227/exe
-     * % md5sum /usr/bin/yes
-     * 33d8c8e092458e35ed45a709aa64a99b  /usr/bin/yes
-     */
-    deleted = endswith(exepath, "(deleted)");
-    md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
-
-    j_exepath     = json_object_new_string(exepath);
-    j_deleted     = json_object_new_boolean(deleted);
-    j_name        = json_object_new_string(status.name);
-    j_uid         = json_object_new_int(status.uid);
-    j_euid        = json_object_new_int(status.euid);
-    j_gid         = json_object_new_int(status.gid);
-    j_egid        = json_object_new_int(status.egid);
-    j_md5         = json_object_new_string(md5);
-    j_parent_pid  = json_object_new_int(event->event_data.fork.parent_pid);
-    j_parent_tgid = json_object_new_int(event->event_data.fork.parent_tgid);
-    j_child_pid   = json_object_new_int(event->event_data.fork.child_pid);
-    j_child_tgid  = json_object_new_int(event->event_data.fork.child_tgid);
-    j_cmdline     = json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "process_name", j_name);
-    json_object_object_add(jobj, "exepath", j_exepath);
-    json_object_object_add(jobj, "deleted", j_deleted);
-    json_object_object_add(jobj, "cmdline", j_cmdline);
-    json_object_object_add(jobj, "uid", j_uid);
-    json_object_object_add(jobj, "euid", j_euid);
-    json_object_object_add(jobj, "gid", j_gid);
-    json_object_object_add(jobj, "egid", j_egid);
-    json_object_object_add(jobj, "md5", j_md5);
-    json_object_object_add(jobj, "parent_pid", j_parent_pid);
-    json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
-    json_object_object_add(jobj, "child_pid", j_child_pid);
-    json_object_object_add(jobj, "child_tgid", j_child_tgid);
-
-    return (char *)json_object_to_json_string(jobj);
-     // TODO parent and child are same data when this event is caught.
-     //printf("%s %s\n", proc_get_exe_path(event->event_data.fork.parent_pid),
-	//	       proc_get_cmdline(event->event_data.fork.child_pid));
-}
-
-/* handle_PROC_EVENT_EXEC() - Handle PROC_EVENT_EXEC events.
- *
- * The following are available for this event:
- *  - pid_t process_pid
- *  - pid_t process_tgid
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event.
- */
-char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
-    char        *exefile;
-    json_object *jobj = json_object_new_object();
-    json_object *j_timestamp = json_object_new_double(timestamp());
-    json_object *j_hostname = json_object_new_string(hostname);
-    json_object *j_exepath;
-    json_object *j_process_pid;
-    json_object *j_process_tgid;
-    json_object *j_md5;
-    json_object *j_cmdline;
-    json_object *j_event_type = json_object_new_string("exec");
-
-    exefile        = proc_get_exe_path(event->event_data.exec.process_pid);
-    j_exepath      = json_object_new_string(exefile);
-    j_process_pid  = json_object_new_int(event->event_data.exec.process_pid);
-    j_process_tgid = json_object_new_int(event->event_data.exec.process_tgid);
-    j_cmdline      = json_object_new_string(proc_get_cmdline(event->event_data.exec.process_pid));
-    j_md5          = json_object_new_string(md5_digest_file(exefile));
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "pid", j_process_pid);
-    json_object_object_add(jobj, "tgid", j_process_tgid);
-    json_object_object_add(jobj, "md5", j_md5);
-    json_object_object_add(jobj, "exename", j_exepath);
-    json_object_object_add(jobj, "cmdline", j_cmdline);
-
-    return (char *)json_object_to_json_string(jobj);
-}
-
-/* handle_PROC_EVENT_EXIT() - Handle PROC_EVENT_EXIT events.
- *
- * The following are available for this event:
- *  - pid_t process_pid
- *  - pid_t process_tgid
- *  - u32 exit_code
- *  - u32 exit_signal
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event.
- */
-char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
-    json_object *jobj = json_object_new_object();
-    json_object *j_timestamp = json_object_new_double(timestamp());
-    json_object *j_hostname = json_object_new_string(hostname);
-    json_object *j_pid;
-    json_object *j_tgid;
-    json_object *j_exitcode;
-    json_object *j_signal;
-    json_object *j_event_type = json_object_new_string("exit");
-
-    j_pid         = json_object_new_int(event->event_data.exit.process_pid);
-    j_tgid        = json_object_new_int(event->event_data.exit.process_tgid);
-    j_exitcode    = json_object_new_int(event->event_data.exit.exit_code);
-    j_signal      = json_object_new_int(event->event_data.exit.exit_signal);
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "pid", j_pid);
-    json_object_object_add(jobj, "tgid", j_tgid);
-    json_object_object_add(jobj, "exit_code", j_exitcode);
-    json_object_object_add(jobj, "signal", j_signal);
-
-    return (char *)json_object_to_json_string(jobj);
-}
-
-/* handle_PROC_EVENT_UID() - Handle PROC_EVENT_UID events.
- * handle_PROC_EVENT_GID() - Handle PROC_EVENT_GID events.
- *
- * The following are availabie for this event:
- *  - pid_t process_ppid
- *  - pid_t process_tgid
- *  - union { u32 ruid; u32 rgid } r
- *  - union { u32 euid; u32 egid } e
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event
- *
- * Note:
- *     The handle_PROC_EVENT_UID and handle_PROC_EVENT_GID functions
- *     are nearly identical.
- */
-char *handle_PROC_EVENT_UID(struct proc_event *event) {
-    // TODO lookup pid exefile/name, hash, ...
-    json_object *jobj = json_object_new_object();
-    json_object *j_timestamp = json_object_new_double(timestamp());
-    json_object *j_hostname = json_object_new_string(hostname);
-    json_object *j_pid;
-    json_object *j_tgid;
-    json_object *j_ruid;
-    json_object *j_euid;
-    json_object *j_event_type = json_object_new_string("uid");
-
-    j_pid  = json_object_new_int(event->event_data.id.process_pid);
-    j_tgid = json_object_new_int(event->event_data.id.process_tgid);
-    j_ruid = json_object_new_int(event->event_data.id.r.ruid);
-    j_euid = json_object_new_int(event->event_data.id.e.euid);
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "pid", j_pid);
-    json_object_object_add(jobj, "tgid", j_tgid);
-    json_object_object_add(jobj, "ruid", j_ruid);
-    json_object_object_add(jobj, "euid", j_euid);
-
-    return (char *)json_object_to_json_string(jobj);
-}
-
-char *handle_PROC_EVENT_GID(struct proc_event *event) {
-    // TODO lookup pid exefile/name, hash, ...
-    json_object *jobj = json_object_new_object();
-    json_object *j_timestamp = json_object_new_double(timestamp());
-    json_object *j_hostname = json_object_new_string(hostname);
-    json_object *j_pid;
-    json_object *j_tgid;
-    json_object *j_rgid;
-    json_object *j_egid;
-    json_object *j_event_type = json_object_new_string("gid");
-
-    j_pid  = json_object_new_int(event->event_data.id.process_pid);
-    j_tgid = json_object_new_int(event->event_data.id.process_tgid);
-    j_rgid = json_object_new_int(event->event_data.id.r.rgid);
-    j_egid = json_object_new_int(event->event_data.id.e.egid);
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "pid", j_pid);
-    json_object_object_add(jobj, "tgid", j_tgid);
-    json_object_object_add(jobj, "rgid", j_rgid);
-    json_object_object_add(jobj, "egid", j_egid);
-
-    return (char *)json_object_to_json_string(jobj);
-}
-
-/* handle_PROC_EVENT_PTRACE() - Handle PROC_EVENT_PTRACE events.
- *
- * The following are availabie for this event:
- *  - pid_t process_ppid
- *  - pid_t process_tgid
- *  - pid_t tracer_pid
- *  - pid_t tracer_tgid
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event
- *
- * Note:
- *     This is triggered when setsid() happens. I am not sure of the
- *     forensic implications of this event, so it currently does nothing.
- */
-char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-    // TODO hash of tracer, exefile/name, etc...
-    json_object *jobj = json_object_new_object();
-    json_object *j_timestamp = json_object_new_double(timestamp());
-    json_object *j_hostname = json_object_new_string(hostname);
-    json_object *j_pid;
-    json_object *j_tgid;
-    json_object *j_tracer_pid;
-    json_object *j_tracer_tgid;
-    json_object *j_event_type = json_object_new_string("ptrace");
-
-    j_pid         = json_object_new_int(event->event_data.ptrace.process_pid);
-    j_tgid        = json_object_new_int(event->event_data.ptrace.process_tgid);
-    j_tracer_pid  = json_object_new_int(event->event_data.ptrace.tracer_pid);
-    j_tracer_tgid = json_object_new_int(event->event_data.ptrace.tracer_tgid);
-
-    json_object_object_add(jobj, "timestamp", j_timestamp);
-    json_object_object_add(jobj, "hostname", j_hostname);
-    json_object_object_add(jobj, "event_type", j_event_type);
-    json_object_object_add(jobj, "pid", j_pid);
-    json_object_object_add(jobj, "tgid", j_tgid);
-    json_object_object_add(jobj, "tracer_pid", j_tracer_pid);
-    json_object_object_add(jobj, "tracer_tgid", j_tracer_tgid);
-
-    return (char *)json_object_to_json_string(jobj);
-}
-
-/* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
- *
- * The following are availabie for this event:
- *  - pid_t process_ppid
- *  - pid_t process_tgid
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event
- *
- * Note:
- *     This is triggered when setsid() happens. I am not sure of the
- *     forensic implications of this event, so it currently does nothing.
- */
-void handle_PROC_EVENT_SID(struct proc_event *event) {
-    return;
-}
-
-/* handle_PROC_EVENT_COMM() - Handle PROC_EVENT_COMM events.
- *
- * The following are availabie for this event:
- *  - pid_t process_ppid
- *  - pid_t process_tgid
- *  - char comm[16]
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event
- *
- * Note:
- *     I am not sure what exactly triggers this right now, or the forensic
- *     implications of these events. Despite this, there seem to be quite
- *     a few of these events.
- */
-void handle_PROC_EVENT_COMM(struct proc_event *event) {
-    return;
-}
-
-/* handle_PROC_EVENT_COREDUMP() - Handle PROC_EVENT_COREDUMP events.
- *
- * The following are availabie for this event:
- *  - pid_t process_ppid
- *  - pid_t process_tgid
- *  - pid_t parent_pid
- *  - pid_t parent_tgid
- *
- * Args:
- *     event - proc_event structure (linux/cn_proc.h)
- *
- * Returns:
- *     char * containing serialized JSON object describing this event
- *
- * TODO this.
- */
-void handle_PROC_EVENT_COREDUMP(struct proc_event *event) {
-    return;
-}
+#define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
 
 
-void handle_message(struct cn_msg *cn_message) {
+void handle_netlink_message(struct cn_msg *cn_message) {
     struct proc_event   *event;
     char                *msg;
 
@@ -536,7 +171,7 @@ void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn
 	if (nlh->nlmsg_type == NLMSG_OVERRUN)
 	    break;
 
-	handle_message(cn_message);
+	handle_netlink_message(cn_message);
 
 	if (nlh->nlmsg_type == NLMSG_DONE) {
 	    break;
@@ -544,6 +179,55 @@ void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn
 	    nlh = NLMSG_NEXT(nlh, recv_length);
 	}
     }
+}
+
+
+typedef struct inotify_entry {
+  int wd;
+  char filename[BUF_LEN];
+  struct inotify_entry *next;
+} inotify_t;
+
+struct inotify_entry *head = NULL;
+
+void inotify_add(int wd, const char *filename) {
+  inotify_t	*link = (inotify_t *)malloc(sizeof(inotify_t));
+
+  link->wd = wd;
+  strncpy(link->filename, filename, sizeof(link->filename));
+
+  link->next = head;
+  head = link;
+}
+
+void inotify_remove(int wd) {
+  inotify_t     *search;
+  inotify_t     *match;
+
+  search = head;
+
+  if (search->wd == wd) {
+    head = search->next;
+    free(search);
+    return;
+  }
+
+  while (search->next) {
+    if (search->next->wd == wd) {
+      match = search->next;
+
+      search->next = search->next->next;
+      free(match);
+
+      break;
+    }
+
+    search = search->next;
+  }
+}
+
+void select_inotify(int inotify) {
+  fprintf(stderr,"\n\n\nselect_inofify\n\n\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -577,23 +261,10 @@ int main(int argc, char *argv[]) {
 	}
     }
 
-    /* Get our hostname once for reporting purposes */
+    /* Get our hostname for reporting purposes */
     if (gethostname(hostname, sizeof(hostname)) == -1) {
 	fprintf(stderr, "gethostname(): %s\n", strerror(errno));
 	return EXIT_FAILURE;
-    }
-
-    /* Daemonize the process if desired
-     * TODO move this after everything gets set up */
-    if (daemonize) {
-	pid = fork();
-	if (pid < 0) {
-	    fprintf(stderr, "fork(): %s\n", strerror(errno));
-	    exit(EXIT_FAILURE);
-	} else if (pid > 0) {
-	    write_pid_file(pidfile, pid);
-	    exit(EXIT_SUCCESS);
-	}
     }
 
     /* Create inotify descriptor */
@@ -602,6 +273,13 @@ int main(int argc, char *argv[]) {
 	fprintf(stderr, "inotify_init(): %s\n", strerror(errno));
 	return EXIT_FAILURE;
     }
+
+    int wd;    
+    wd = inotify_add_watch(inotify, "/usr/bin/id", IN_ALL_EVENTS);
+    if (wd == -1)
+      fprintf(stderr, "inotify_add_watch() %s : %s\n", "/tmp", strerror(errno));
+    else
+      inotify_add(wd, "/usr/bin/id");
 
     /* Create netlink socket */
     netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
@@ -679,27 +357,39 @@ int main(int argc, char *argv[]) {
 	return EXIT_FAILURE;
     }
 
-    /* Set up select fd set */
-    FD_ZERO(&fdset);
-    FD_SET(netlink, &fdset);
-    FD_SET(inotify, &fdset);
-
-    if (select(FD_SETSIZE, &fdset, NULL, NULL, NULL) < 0) {
-	fprintf(stderr, "select(): %s\n", strerror(errno));
-	return EXIT_FAILURE;
+    /* Daemonize the process if desired. */
+    if (daemonize) {
+	pid = fork();
+	if (pid < 0) {
+	    fprintf(stderr, "fork(): %s\n", strerror(errno));
+	    exit(EXIT_FAILURE);
+	} else if (pid > 0) {
+	    write_pid_file(pidfile, pid);
+	    exit(EXIT_SUCCESS);
+	}
     }
 
     // TODO print startup message, add atexit() handler to log when this dies
+    int setsize = netlink > inotify ? netlink + 1 : inotify + 1;
     for(;;) {
+      FD_ZERO(&fdset);
+      FD_SET(netlink, &fdset);
+      FD_SET(inotify, &fdset);
+
+      if (select(setsize, &fdset, NULL, NULL, NULL) < 0) {
+	fprintf(stderr, "select(): %s\n", strerror(errno));
+	return EXIT_FAILURE;
+      }
 	for(int i = 0; i < FD_SETSIZE; i++) {
 	    if (FD_ISSET(i, &fdset)) {
-		if (i == inotify) {
-		    fprintf(stderr, "inotify!!!\n");
-		}
+		if (i == inotify)
+		  select_inotify(inotify);
 
-		if (i == netlink) {
+		else if (i == netlink)
 		    select_netlink(netlink, nl_kernel, cn_message);
-		}
+
+		else
+		  fprintf(stderr, "idk wtf this fd is: %d\n", i);
 	    }
 	}
     } /* for(;;) */
