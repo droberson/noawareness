@@ -35,30 +35,34 @@ extern char hostname[HOST_NAME_MAX];
  *   probably more important than the forking process in most cases.
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
-  char                *exepath;
+  char                *exepath =				\
+    proc_get_exe_path(event->event_data.fork.parent_pid);
   bool                deleted;
   //char                *md5;
-  struct proc_status  status;
+  struct proc_status  status =				\
+    proc_get_status(event->event_data.fork.parent_pid);
   json_object         *jobj = json_object_new_object();
   json_object         *j_timestamp = json_object_new_double(timestamp());
   json_object         *j_hostname = json_object_new_string(hostname);
-  json_object         *j_exepath;
+  json_object         *j_exepath = json_object_new_string(exepath);
   json_object         *j_deleted;
-  json_object         *j_name;
-  json_object         *j_uid;
-  json_object         *j_euid;
-  json_object         *j_gid;
-  json_object         *j_egid;
+  json_object         *j_name = json_object_new_string(status.name);
+  json_object         *j_uid = json_object_new_int(status.uid);
+  json_object         *j_euid = json_object_new_int(status.euid);
+  json_object         *j_gid = json_object_new_int(status.gid);
+  json_object         *j_egid = json_object_new_int(status.egid);
   //json_object         *j_md5;
-  json_object         *j_parent_pid;
-  json_object         *j_parent_tgid;
-  json_object         *j_child_pid;
-  json_object         *j_child_tgid;
-  json_object         *j_cmdline;
+  json_object         *j_parent_pid = \
+    json_object_new_int(event->event_data.fork.parent_pid);
+  json_object         *j_parent_tgid = \
+    json_object_new_int(event->event_data.fork.parent_tgid);
+  json_object         *j_child_pid = \
+    json_object_new_int(event->event_data.fork.child_pid);
+  json_object         *j_child_tgid = \
+    json_object_new_int(event->event_data.fork.child_tgid);
+  json_object         *j_cmdline = \
+    json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
   json_object         *j_event_type = json_object_new_string("fork");
-
-  status = proc_get_status(event->event_data.fork.parent_pid);
-  exepath = proc_get_exe_path(event->event_data.fork.parent_pid);
 
   /* If files are running, but have been deleted on disk, the
    * symbolic link in /proc/PID/exe has (deleted) appended to
@@ -80,21 +84,10 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
    * 33d8c8e092458e35ed45a709aa64a99b  /usr/bin/yes
    */
   deleted = endswith(exepath, "(deleted)");
-  //md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
-
-  j_exepath     = json_object_new_string(exepath);
   j_deleted     = json_object_new_boolean(deleted);
-  j_name        = json_object_new_string(status.name);
-  j_uid         = json_object_new_int(status.uid);
-  j_euid        = json_object_new_int(status.euid);
-  j_gid         = json_object_new_int(status.gid);
-  j_egid        = json_object_new_int(status.egid);
+
+  //md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
   //j_md5         = json_object_new_string(md5);
-  j_parent_pid  = json_object_new_int(event->event_data.fork.parent_pid);
-  j_parent_tgid = json_object_new_int(event->event_data.fork.parent_tgid);
-  j_child_pid   = json_object_new_int(event->event_data.fork.child_pid);
-  j_child_tgid  = json_object_new_int(event->event_data.fork.child_tgid);
-  j_cmdline     = json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -249,16 +242,11 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
   json_object *jobj = json_object_new_object();
   json_object *j_timestamp = json_object_new_double(timestamp());
   json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_pid;
-  json_object *j_tgid;
-  json_object *j_rgid;
-  json_object *j_egid;
+  json_object *j_pid = json_object_new_int(event->event_data.id.process_pid);
+  json_object *j_tgid = json_object_new_int(event->event_data.id.process_tgid);
+  json_object *j_rgid = json_object_new_int(event->event_data.id.r.rgid);
+  json_object *j_egid = json_object_new_int(event->event_data.id.e.egid);
   json_object *j_event_type = json_object_new_string("gid");
-
-  j_pid  = json_object_new_int(event->event_data.id.process_pid);
-  j_tgid = json_object_new_int(event->event_data.id.process_tgid);
-  j_rgid = json_object_new_int(event->event_data.id.r.rgid);
-  j_egid = json_object_new_int(event->event_data.id.e.egid);
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -294,16 +282,15 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object *jobj = json_object_new_object();
   json_object *j_timestamp = json_object_new_double(timestamp());
   json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_pid;
-  json_object *j_tgid;
-  json_object *j_tracer_pid;
-  json_object *j_tracer_tgid;
+  json_object *j_pid = \
+    json_object_new_int(event->event_data.ptrace.process_pid);
+  json_object *j_tgid = \
+    json_object_new_int(event->event_data.ptrace.process_tgid);
+  json_object *j_tracer_pid = \
+    json_object_new_int(event->event_data.ptrace.tracer_pid);
+  json_object *j_tracer_tgid = \
+    json_object_new_int(event->event_data.ptrace.tracer_tgid);
   json_object *j_event_type = json_object_new_string("ptrace");
-
-  j_pid         = json_object_new_int(event->event_data.ptrace.process_pid);
-  j_tgid        = json_object_new_int(event->event_data.ptrace.process_tgid);
-  j_tracer_pid  = json_object_new_int(event->event_data.ptrace.tracer_pid);
-  j_tracer_tgid = json_object_new_int(event->event_data.ptrace.tracer_tgid);
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
