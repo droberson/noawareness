@@ -21,8 +21,9 @@ char *proc_exe_path(pid_t pid) {
 
 char *proc_get_exe_path(pid_t pid) {
     char        exe_path[PATH_MAX];
-    static char real_path[PATH_MAX] = {0};
+    static char real_path[PATH_MAX];
 
+    memset(real_path, 0x00, sizeof(real_path));
     snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
 
     if (readlink(exe_path, real_path, PATH_MAX) == -1)
@@ -37,9 +38,10 @@ char *proc_get_cmdline(pid_t pid) {
     // do something better
     int             fd;
     char            cmdline_path[PATH_MAX];
-    static char     buf[ARG_MAX] = {0};
+    static char     buf[ARG_MAX];
     int             bytes;
 
+    memset(cmdline_path, 0x00, sizeof(cmdline_path));
     snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%d/cmdline", pid);
 
     fd = open(cmdline_path, O_RDONLY);
