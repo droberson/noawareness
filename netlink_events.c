@@ -1,6 +1,8 @@
 #include <stdbool.h>
+#include <limits.h>
 
 #include <linux/cn_proc.h>
+
 #include <json-c/json.h>
 
 #include "md5.h"
@@ -8,8 +10,7 @@
 #include "time_common.h"
 #include "string_common.h"
 
-extern char *hostname;
-
+extern char hostname[HOST_NAME_MAX];
 
 /* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
  *
