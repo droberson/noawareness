@@ -273,7 +273,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   char int2str[32];
   char *mask;
   char path[PATH_MAX];
-  char permstr[4];
+  char permstr[8];
   inotify_t *current = head;
   inotify_t *search;
   int hash = 0, get_permissions = 0, check_dir = 0, remove = 0;
@@ -336,8 +336,8 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
     }
   } /* if (check_dir) */
 
-  char uid[16];
-  char gid[16];
+  char uid[8];
+  char gid[8];
   if (get_permissions) {
     if (stat(path, &s) == 0) {
       //pwent = getpwuid(s.st_uid);
