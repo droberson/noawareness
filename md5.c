@@ -7,6 +7,16 @@
 #include "md5.h"
 #include "error.h"
 
+#define MD5_SHOW_ERRORS 0
+
+/* md5_digest_file - Calculate MD5 digest of a file.
+ *
+ * Args:
+ *     path - Path of file to hash.
+ *
+ * Returns:
+ *     string containing the digest on success, "" on failure
+ */
 char *md5_digest_file(const char *path) {
   unsigned char   c[MD5_DIGEST_LENGTH];
   FILE            *fp;
@@ -17,9 +27,11 @@ char *md5_digest_file(const char *path) {
 
   fp = fopen(path, "rb");
   if (fp == NULL) {
+#ifdef MD5_SHOW_ERRORS
     error("md5_digest_file: unable to open %s for reading: %s\n",
 	    path,
 	    strerror(errno));
+#endif /* MD5_SHOW_ERRORS */
     return "";
   }
 
@@ -30,7 +42,6 @@ char *md5_digest_file(const char *path) {
 
   fclose(fp);
 
-  // TODO lol wtf is this
   snprintf(digest, sizeof(digest),
 	   "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 	   c[0], c[1], c[2], c[3], c[4],
