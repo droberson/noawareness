@@ -10,11 +10,18 @@
 #include <sys/types.h>
 #include <sys/inotify.h>
 
+#include <json-c/json.h>
+
 #include "error.h"
+#include "net.h"
 #include "inotify_common.h"
+#include "time_common.h"
 
 
 inotify_t       *head = NULL;
+extern char     hostname[HOST_NAME_MAX];
+extern sock_t   sock;
+extern bool     daemonize;
 
 
 void inotify_add(int wd, const char *filename) {
@@ -92,7 +99,6 @@ void inotify_add_files(int fd, const char *path) {
 void inotify_process_event(int inotify, struct inotify_event *e) {
   int           wd;
   int           found;
-  char          output[1024];
   char          int2str[32];
   char          *mask;
   char          path[PATH_MAX];
@@ -162,38 +168,48 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
     }
   } /* if (check_dir) */
 
-  char uid[8];
-  char gid[8];
-  if (get_perm) {
-    if (stat(path, &s) == 0) {
-      //pwent = getpwuid(s.st_uid);
-      //g = getgrgid(s.st_gid);
-      snprintf(uid, sizeof(uid), "%d", s.st_uid);
-      snprintf(gid, sizeof(gid), "%d", s.st_gid);
+  if (get_perm) { // TODO deal with errors
+    if (stat(path, &s) == 0)
       snprintf(permstr, sizeof(permstr), "%o", s.st_mode);
-    }
   }
 
   //if (hash)
     // TODO if file is over X bytes, dont hash
     // do hash
 
-   snprintf(output, sizeof(output), "%s; wd =%2d; %s%s%s%s%s%s%s%s%s%s%s%s",
-	    path,
-	    e->wd,
-	    (e->cookie > 0) ? "cookie =" : "",
-	    (e->cookie > 0) ? int2str : "",
-	    (e->cookie > 0) ? "; " : "",
-	    mask,
-	    get_perm || hash ? "; " : "",
-	    get_perm || hash ? uid : "",
-	    //get_perm || hash ? pwent->pw_name : "",
-	    get_perm || hash ? ":" : "",
-	    get_perm || hash ? gid : "",
-	    //get_perm || hash ? g->gr_name : "",
-	    get_perm ? "; perm = " : "",
-	    get_perm ? permstr : "",
-	    hash ? " ; hash = " : "",
-	    hash ? hashstr : "");
-   printf("%s\n", output);
+  json_object *jobj           = json_object_new_object();
+  json_object *j_timestamp    = json_object_new_double(timestamp());
+  json_object *j_hostname     = json_object_new_string(hostname);
+  json_object *j_event_type   = json_object_new_string("inotify");
+  json_object *j_inotify_mask = json_object_new_string(mask);
+  json_object *j_path         = json_object_new_string(path);
+  json_object *j_uid;
+  json_object *j_gid;
+  json_object *j_perm;
+  json_object *j_md5;
+
+  json_object_object_add(jobj, "timestamp", j_timestamp);
+  json_object_object_add(jobj, "hostname", j_hostname);
+  json_object_object_add(jobj, "event_type", j_event_type);
+  json_object_object_add(jobj, "inotify_mask", j_inotify_mask);
+  json_object_object_add(jobj, "path", j_path);
+
+  if (get_perm) {
+    j_uid  = json_object_new_int(s.st_uid);
+    j_gid  = json_object_new_int(s.st_gid);
+    j_perm = json_object_new_string(permstr);
+
+    json_object_object_add(jobj, "uid", j_uid);
+    json_object_object_add(jobj, "gid", j_gid);
+    json_object_object_add(jobj, "permissions", j_perm);
+  }
+
+  if (hash) {
+    j_md5 = json_object_new_string(hashstr);
+    json_object_object_add(jobj, "md5", j_md5);
+  }
+
+  char *msg = (char *)json_object_to_json_string(jobj);
+  if (!daemonize) printf("\n%s\n", msg);
+  sockprintf(sock, "%s\r\n", msg);
 }
