@@ -210,6 +210,6 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   }
 
   char *msg = (char *)json_object_to_json_string(jobj);
-  if (!daemonize) printf("\n%s\n", msg);
+  if (!daemonize) printf("%s\n", msg);
   sockprintf(sock, "%s\r\n", msg);
 }
