@@ -53,13 +53,13 @@
  * Globals
  */
 sock_t  sock;
-bool    daemonize = false;
-char   *pidfile = "/var/run/noawareness.pid";
-char    hostname[HOST_NAME_MAX];
-char    *inotifyconfig = NULL;
-char    *log_server = NULL;
-port_t  log_server_port = 55555;
-
+bool            daemonize       = false;
+char            *pidfile        = "/var/run/noawareness.pid";
+char            *inotifyconfig  = NULL;
+char            *log_server     = "127.0.0.1";
+port_t          log_server_port = 55555;
+unsigned long   maxsize         = 50000000; // 50mb
+char            hostname[HOST_NAME_MAX];
 
 void handle_netlink_message(struct cn_msg *cn_message) {
   struct proc_event   *event;
@@ -132,16 +132,6 @@ void write_pid_file(const char *path, pid_t pid) {
   fclose(pidfile);
 }
 
-void usage(const char *progname) {
-  error("usage: %s [-h?]\n\n", progname);
-  error("    -h/-?     - print this menu and exit.\n");
-  error("    -d        - Daemonize. Default: %s\n",
-	(daemonize == true) ? "yes" : "no");
-  error("    -p <path> - Path to PID file. Default: %s\n", pidfile);
-
-  exit(EXIT_FAILURE);
-}
-
 void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
   int                 recv_length;
   socklen_t           nl_kernel_len;
@@ -197,6 +187,23 @@ void select_inotify(int inotify) {
   }
 }
 
+void usage(const char *progname) {
+  error("usage: %s [-h?]\n\n", progname);
+  error("    -h/-?      - print this menu and exit.\n");
+  error("    -d         - Daemonize. Default: %s\n",
+	(daemonize == true) ? "yes" : "no");
+  error("    -i <path>  - Path to inotify config file. Default: %s\n",
+	inotifyconfig);
+  error("    -m <bytes> - Maximum size of file to hash. Default: %d\n",
+	maxsize);
+  error("    -P <path>  - Path to PID file. Default: %s\n", pidfile);
+  error("    -s <host>  - Remote log server. Default: %s\n", log_server);
+  error("    -p <port>  - Port of remote server. Default: %d\n",
+	log_server_port);
+
+  exit(EXIT_FAILURE);
+}
+
 int main(int argc, char *argv[]) {
   int                     opt;
   int                     err;
@@ -216,6 +223,10 @@ int main(int argc, char *argv[]) {
     switch (opt) {
     case 'd': /* Daemonize */
       daemonize = (daemonize == true) ? false : true;
+      break;
+
+    case 'm': /* Maximum filesize to hash */
+      maxsize = atol(optarg);
       break;
 
     case 'p': /* Remote server port */
