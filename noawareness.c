@@ -21,6 +21,7 @@
 #include <linux/cn_proc.h>
 
 #include "net.h"
+#include "error.h"
 #include "netlink_events.h"
 #include "inotify_common.h"
 
@@ -46,6 +47,7 @@
      // 1751  <- need it encoded so it doesnt jack up formatting.
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
+// TODO print startup message, add atexit() handler to log when this dies
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
@@ -115,7 +117,8 @@ void handle_netlink_message(struct cn_msg *cn_message) {
 
   /* If we have data to output, deal with it. */
   if (msg != NULL) {
-    if (!daemonize) printf("%s\n", msg);
+    if (!daemonize)
+      printf("%s\n", msg);
     sockprintf(sock, "%s\r\n", msg);
   }
 }
@@ -124,22 +127,19 @@ void write_pid_file(const char *path, pid_t pid) {
   FILE        *pidfile;
 
   pidfile = fopen(path, "w");
-  if (pidfile == NULL) {
-    fprintf(stderr, "Unable to open PID file %s: %s\n",
-	    path, strerror(errno));
-    exit(EXIT_FAILURE);
-  }
+  if (pidfile == NULL)
+    error_fatal("Unable to open PID file %s: %s\n", path, strerror(errno));
 
   fprintf(pidfile, "%d", pid);
   fclose(pidfile);
 }
 
 void usage(const char *progname) {
-  fprintf(stderr, "usage: %s [-h?]\n\n", progname);
-  fprintf(stderr, "    -h/-?     - print this menu and exit.\n");
-  fprintf(stderr, "    -d        - Daemonize. Default: %s\n",
-	  (daemonize == true) ? "yes" : "no");
-  fprintf(stderr, "    -p <path> - Path to PID file. Default: %s\n", pidfile);
+  error("usage: %s [-h?]\n\n", progname);
+  error("    -h/-?     - print this menu and exit.\n");
+  error("    -d        - Daemonize. Default: %s\n",
+	(daemonize == true) ? "yes" : "no");
+  error("    -p <path> - Path to PID file. Default: %s\n", pidfile);
 
   exit(EXIT_FAILURE);
 }
@@ -153,11 +153,11 @@ void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn
   nl_kernel_len = sizeof(nl_kernel);
 
   recv_length = recvfrom(netlink,
-			 buf,
-			 sizeof(buf),
-			 0,
-			 (struct sockaddr *)&nl_kernel,
-			 &nl_kernel_len);
+                         buf,
+                         sizeof(buf),
+                         0,
+                         (struct sockaddr *)&nl_kernel,
+                         &nl_kernel_len);
   nlh = (struct nlmsghdr *)buf;
 
   if ((recv_length < 1) || (nl_kernel.nl_pid != 0))
@@ -189,10 +189,8 @@ void select_inotify(int inotify) {
   struct inotify_event  *event;
 
   res = read(inotify, buf, sizeof(buf));
-  if ((res == 0) || (res == -1)) {
-    fprintf(stderr, "read() on inotify fd: %s\n", strerror(errno));
-    exit(EXIT_FAILURE);
-  }
+  if ((res == 0) || (res == -1))
+    error_fatal("read() on inotify fd: %s\n", strerror(errno));
 
   for (p = buf; p < buf + res; ) {
     event = (struct inotify_event *) p;
@@ -203,7 +201,7 @@ void select_inotify(int inotify) {
 
 int main(int argc, char *argv[]) {
   int                     opt;
-  int                     error;
+  int                     err;
   pid_t                   pid;
   sock_t                  netlink;
   int                     inotify;
@@ -247,28 +245,20 @@ int main(int argc, char *argv[]) {
   }
 
   /* Get our hostname for reporting purposes */
-  if (gethostname(hostname, sizeof(hostname)) == -1) {
-    fprintf(stderr, "gethostname(): %s\n", strerror(errno));
-    return EXIT_FAILURE;
-  }
+  if (gethostname(hostname, sizeof(hostname)) == -1)
+    error_fatal("gethostname(): %s\n", strerror(errno));
 
   /* Create inotify descriptor */
   inotify = inotify_init();
-  if (inotify == -1) {
-    fprintf(stderr, "inotify_init(): %s\n", strerror(errno));
-    return EXIT_FAILURE;
-  }
+  if (inotify == -1)
+    error_fatal("inotify_init(): %s\n", strerror(errno));
 
   inotify_add_files(inotify, inotifyconfig);
 
   /* Create netlink socket */
   netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
-  if (netlink == -1) {
-    fprintf(stderr,
-            "error creating netlink socket: %s\n",
-            strerror(errno));
-    return EXIT_FAILURE;
-  }
+  if (netlink == -1)
+    error_fatal("error creating netlink socket: %s\n", strerror(errno));
 
   nl_kernel.nl_family = AF_NETLINK;
   nl_kernel.nl_groups = CN_IDX_PROC;
@@ -278,11 +268,9 @@ int main(int argc, char *argv[]) {
   nl_userland.nl_groups = CN_IDX_PROC;
   nl_userland.nl_pid    = getpid();
 
-  error = bind(netlink, (struct sockaddr *)&nl_userland, sizeof(nl_userland));
-  if (error == -1) {
-    fprintf(stderr, "error binding netlink socket: %s\n", strerror(errno));
-    return EXIT_FAILURE;
-  }
+  err = bind(netlink, (struct sockaddr *)&nl_userland, sizeof(nl_userland));
+  if (err == -1)
+    error_fatal("error binding netlink socket: %s\n", strerror(errno));
 
   memset(buf, 0x00, sizeof(buf));
   nl_header = (struct nlmsghdr *)buf;
@@ -296,16 +284,16 @@ int main(int argc, char *argv[]) {
   cn_message->ack    = 0;
   cn_message->len    = sizeof(enum proc_cn_mcast_op);
 
-  nl_header->nlmsg_len   =						\
+  nl_header->nlmsg_len   = \
     NLMSG_LENGTH(sizeof(struct cn_msg) + sizeof(enum proc_cn_mcast_op));
   nl_header->nlmsg_type  = NLMSG_DONE;
   nl_header->nlmsg_flags = 0;
   nl_header->nlmsg_seq   = 0;
   nl_header->nlmsg_pid   = getpid();
 
-  error = send(netlink, nl_header, nl_header->nlmsg_len, 0);
-  if (error != nl_header->nlmsg_len) {
-    fprintf(stderr, "send: %s\n", strerror(errno));
+  err = send(netlink, nl_header, nl_header->nlmsg_len, 0);
+  if (err != nl_header->nlmsg_len) {
+    error("send: %s\n", strerror(errno));
     close(netlink);
     return EXIT_FAILURE;
   }
@@ -315,10 +303,8 @@ int main(int argc, char *argv[]) {
   struct sockaddr_in  s_addr;
   //struct hostent      *server;
   sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock < 0) {
-    fprintf(stderr, "socket(): %s\n", strerror(errno));
-    return EXIT_FAILURE;
-  }
+  if (sock < 0)
+    error_fatal("socket(): %s\n", strerror(errno));
 
   //server = gethostbyname("localhost");
   //if (server == NULL) {
@@ -332,25 +318,21 @@ int main(int argc, char *argv[]) {
   s_addr.sin_port = htons(55555);
 
   /* connect() so you dont have to use sendto() */
-  error = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
-  if (error == -1) {
-    fprintf(stderr, "connect(): %s\n", strerror(errno));
-    return EXIT_FAILURE;
-  }
+  err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
+  if (err == -1)
+    error_fatal("connect(): %s\n", strerror(errno));
 
   /* Daemonize the process if desired. */
   if (daemonize) {
     pid = fork();
-    if (pid < 0) {
-      fprintf(stderr, "fork(): %s\n", strerror(errno));
-      exit(EXIT_FAILURE);
-    } else if (pid > 0) {
+    if (pid < 0)
+      error_fatal("fork(): %s\n", strerror(errno));
+
+    else if (pid > 0) {
       write_pid_file(pidfile, pid);
       exit(EXIT_SUCCESS);
     }
   }
-
-  // TODO print startup message, add atexit() handler to log when this dies
 
   /* Set up select loop and get some */
   int setsize = netlink > inotify ? netlink + 1 : inotify + 1;
@@ -359,21 +341,19 @@ int main(int argc, char *argv[]) {
     FD_SET(netlink, &fdset);
     FD_SET(inotify, &fdset);
 
-    if (select(setsize, &fdset, NULL, NULL, NULL) < 0) {
-      fprintf(stderr, "select(): %s\n", strerror(errno));
-      return EXIT_FAILURE;
-    }
+    if (select(setsize, &fdset, NULL, NULL, NULL) < 0)
+      error_fatal("select(): %s\n", strerror(errno));
 
     for(int i = 0; i < FD_SETSIZE; i++) {
       if (FD_ISSET(i, &fdset)) {
-	if (i == inotify)
-	  select_inotify(inotify);
+        if (i == inotify)
+          select_inotify(inotify);
 
-	else if (i == netlink)
-	  select_netlink(netlink, nl_kernel, cn_message);
+        else if (i == netlink)
+          select_netlink(netlink, nl_kernel, cn_message);
 
-	else
-	  fprintf(stderr, "idk wtf this fd is: %d\n", i);
+        else
+          error("idk wtf this fd is: %d\n", i);
       }
     }
   } /* for(;;) */
