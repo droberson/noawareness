@@ -155,6 +155,24 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   return (char *)json_object_to_json_string(jobj);
 }
 
+char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
+  json_object *jobj = json_object_new_object();
+  json_object *j_timestamp = json_object_new_double(timestamp());
+  json_object *j_hostname = json_object_new_string(hostname);
+  json_object *j_pid = json_object_new_int(event->event_data.exec.process_pid);
+  json_object *j_event_type = json_object_new_string("environment");
+  json_object *j_environment = \
+    json_object_new_string(proc_environ(event->event_data.exec.process_pid));
+
+  json_object_object_add(jobj, "timestamp", j_timestamp);
+  json_object_object_add(jobj, "hostname", j_hostname);
+  json_object_object_add(jobj, "event_type", j_event_type);
+  json_object_object_add(jobj, "pid", j_pid);
+  json_object_object_add(jobj, "environment", j_environment);
+
+  return (char *)json_object_to_json_string(jobj);
+}
+
 /* handle_PROC_EVENT_EXIT() - Handle PROC_EVENT_EXIT events.
  *
  * The following are available for this event:

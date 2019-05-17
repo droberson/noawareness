@@ -10,8 +10,26 @@
 
 #include "error.h"
 #include "proc.h"
+#include "md5.h"
 #include "string_common.h"
 
+
+char *proc_environ(pid_t pid) {
+  int           fd;
+  int           bytes;
+  char          environ_path[PATH_MAX];
+  static char   environ[ARG_MAX];
+
+  snprintf(environ_path, sizeof(environ_path), "/proc/%d/environ", pid);
+
+  fd = open(environ_path, O_RDONLY);
+  if (fd == -1)
+    return "";
+  bytes = read(fd, environ, sizeof(environ));
+  close(fd);
+
+  return (char *)base64_encode((const unsigned char *)environ, bytes, NULL);
+}
 
 char *proc_exe_path(pid_t pid) {
   static char exe_path[PATH_MAX];

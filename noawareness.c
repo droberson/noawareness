@@ -33,16 +33,6 @@
 // TODO keep track of processes as they are executed to give EXIT better context
    // This will need something like 'ps' to get initial list of processes so
    // we have data for processes that have been running longer than this program
-// TODO environment?? /proc/X/environ
-   // This is a good idea, because there are a lot of neat things to glean from
-   // a processes environment. The downside is that environments can get quite
-   // large, so logging this every time is kind of insane.
-     // daniel@stingray ~ % env |wc -c
-     // 3203
-     // daniel@stingray ~ % env |gzip -f - |wc -c
-     // 1294
-     // daniel@stingray ~ % env |gzip -f - |base64 |wc -c
-     // 1751  <- need it encoded so it doesnt jack up formatting.
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
 // TODO print startup message, add atexit() handler to log when this dies
@@ -64,6 +54,7 @@ char            hostname[HOST_NAME_MAX];
 void handle_netlink_message(struct cn_msg *cn_message) {
   struct proc_event   *event;
   char                *msg;
+  char                *environment;
 
   msg = NULL;
   event = (struct proc_event *)cn_message->data;
@@ -78,6 +69,10 @@ void handle_netlink_message(struct cn_msg *cn_message) {
 
   case PROC_EVENT_EXEC:
     msg = handle_PROC_EVENT_EXEC(event);
+    environment = handle_PROC_EVENT_EXEC_environment(event);
+    if (!daemonize)
+      printf("%s\n", environment);
+    sockprintf(sock, "%s\r\n", environment);
     break;
 
   case PROC_EVENT_EXIT:
@@ -109,7 +104,7 @@ void handle_netlink_message(struct cn_msg *cn_message) {
     break;
 
   default:
-    printf("\nevent %d not handled yet\n", event->what);
+    error("\nevent %d not handled yet\n", event->what);
     break;
   }
 
