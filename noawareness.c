@@ -34,8 +34,8 @@
 // TODO inotify event log to remote server
 // TODO JSON inotify event output
 // TODO SIGHUP reload inotify.conf
-// TODO implement getgrgid and getpwuid myself because cant link these static
 // TODO map uids and gids to real names
+  // implement getgrgid and getpwuid myself because cant link these static
 // TODO permissions, attributes, owner, groupships of files
 // TODO keep track of processes as they are executed to give EXIT better context
    // This will need something like 'ps' to get initial list of processes so
@@ -52,8 +52,6 @@
      // 1751  <- need it encoded so it doesnt jack up formatting.
 // TODO limits? /proc/X/limits
 // TODO cwd /proc/X/cwd
-// TODO add inotify-watch stuff
-// TODO watch pcap too
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
@@ -267,38 +265,41 @@ void inotify_add_files(int fd, const char *path) {
 }
 
 void inotify_process_event(int inotify, struct inotify_event *e) {
-  int wd;
-  int found;
-  char output[1024];
-  char int2str[32];
-  char *mask;
-  char path[PATH_MAX];
-  char permstr[8];
-  inotify_t *current = head;
-  inotify_t *search;
-  int hash = 0, get_permissions = 0, check_dir = 0, remove = 0;
-  struct stat s;
+  int           wd;
+  int           found;
+  char          output[1024];
+  char          int2str[32];
+  char          *mask;
+  char          path[PATH_MAX];
+  char          permstr[8];
+  inotify_t     *current = head;
+  inotify_t     *search;
+  bool          hash      = false,
+                get_perm  = false,
+                check_dir = false,
+                remove    = false;
+  struct stat   s;
   //struct passwd *pwent;
-  //struct group *g;
-  char hashstr[] = "ahashyhashhash";
+  //struct group  *g;
+  char          hashstr[] = "ahashyhashhash";
 
   while (current->wd != e->wd)
     current = current->next;
 
   if (e->mask & IN_ACCESS)          mask = "IN_ACCESS";
-  if (e->mask & IN_ATTRIB)        { mask = "IN_ATTRIB"; get_permissions = 1; }
+  if (e->mask & IN_ATTRIB)        { mask = "IN_ATTRIB"; get_perm = true; }
   if (e->mask & IN_CLOSE_NOWRITE)   mask = "IN_CLOSE_NOWRITE";
-  if (e->mask & IN_CLOSE_WRITE)   { mask = "IN_CLOSE_WRITE"; hash = 1; }
-  if (e->mask & IN_CREATE)        { mask = "IN_CREATE"; get_permissions = 1; }
+  if (e->mask & IN_CLOSE_WRITE)   { mask = "IN_CLOSE_WRITE"; hash = true; }
+  if (e->mask & IN_CREATE)        { mask = "IN_CREATE"; get_perm = true; }
   if (e->mask & IN_DELETE)          mask = "IN_DELETE";
   if (e->mask & IN_DELETE_SELF)     mask = "IN_DELETE_SELF";
-  if (e->mask & IN_IGNORED)       { mask = "IN_IGNORED"; remove = 1; }
-  if (e->mask & IN_ISDIR)         { mask = "IN_ISDIR"; check_dir = 1; }
-  if (e->mask & IN_MODIFY)        { mask = "IN_MODIFY"; hash = 1; }
+  if (e->mask & IN_IGNORED)       { mask = "IN_IGNORED"; remove = true; }
+  if (e->mask & IN_ISDIR)         { mask = "IN_ISDIR"; check_dir = true; }
+  if (e->mask & IN_MODIFY)        { mask = "IN_MODIFY"; hash = true; }
   if (e->mask & IN_MOVE_SELF)       mask = "IN_MOVE_SELF";
   if (e->mask & IN_MOVED_FROM)      mask = "IN_MOVED_FROM";
   if (e->mask & IN_MOVED_TO)        mask = "IN_MOVED_TO";
-  if (e->mask & IN_OPEN)          { mask = "IN_OPEN"; get_permissions = 1; }
+  if (e->mask & IN_OPEN)          { mask = "IN_OPEN"; get_perm = true; }
   if (e->mask & IN_Q_OVERFLOW)      mask = "IN_Q_OVERFLOW";
   if (e->mask & IN_UNMOUNT)         mask = "IN_UNMOUNT";
 
@@ -338,7 +339,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 
   char uid[8];
   char gid[8];
-  if (get_permissions) {
+  if (get_perm) {
     if (stat(path, &s) == 0) {
       //pwent = getpwuid(s.st_uid);
       //g = getgrgid(s.st_gid);
@@ -358,24 +359,24 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 	    (e->cookie > 0) ? int2str : "",
 	    (e->cookie > 0) ? "; " : "",
 	    mask,
-	    get_permissions || hash ? "; " : "",
-	    get_permissions || hash ? uid : "",
-	    //get_permissions || hash ? pwent->pw_name : "",
-	    get_permissions || hash ? ":" : "",
-	    get_permissions || hash ? gid : "",
-	    //get_permissions || hash ? g->gr_name : "",
-	    get_permissions ? "; perm = " : "",
-	    get_permissions ? permstr : "",
+	    get_perm || hash ? "; " : "",
+	    get_perm || hash ? uid : "",
+	    //get_perm || hash ? pwent->pw_name : "",
+	    get_perm || hash ? ":" : "",
+	    get_perm || hash ? gid : "",
+	    //get_perm || hash ? g->gr_name : "",
+	    get_perm ? "; perm = " : "",
+	    get_perm ? permstr : "",
 	    hash ? " ; hash = " : "",
 	    hash ? hashstr : "");
    printf("%s\n", output);
 }
 
 void select_inotify(int inotify) {
-  char *p;
-  int res;
-  char buf[INOTIFY_BUF_LEN];
-  struct inotify_event *event;
+  char                  *p;
+  int                   res;
+  char                  buf[INOTIFY_BUF_LEN];
+  struct inotify_event  *event;
 
   res = read(inotify, buf, sizeof(buf));
   if ((res == 0) || (res == -1)) {
@@ -500,7 +501,6 @@ int main(int argc, char *argv[]) {
   }
 
   /* Create udp socket for sending the logs */
-  // TODO getopt for server and port
   // TODO resolve hostnames
   struct sockaddr_in  s_addr;
   //struct hostent      *server;
