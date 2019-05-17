@@ -19,11 +19,11 @@
 #include "time_common.h"
 
 
-inotify_t       *head = NULL;
-extern char     hostname[HOST_NAME_MAX];
-extern sock_t   sock;
-extern bool     daemonize;
-
+inotify_t               *head = NULL;
+extern char             hostname[HOST_NAME_MAX];
+extern sock_t           sock;
+extern bool             daemonize;
+extern unsigned long    maxsize;
 
 void inotify_add(int wd, const char *filename) {
   inotify_t	*link = (inotify_t *)malloc(sizeof(inotify_t));
@@ -72,7 +72,7 @@ void inotify_add_files(int fd, const char *path) {
   // - /root
   // - /var/www/
   if (path == NULL) {
-    error("no inotify config!\n");
+    error("no inotify config provided!\n");
     return;
   }
 
@@ -174,8 +174,12 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
       snprintf(permstr, sizeof(permstr), "%o", s.st_mode);
   }
 
-  if (hash) // TODO if file is over X bytes, dont hash
-    md5 = md5_digest_file(path);
+  if (hash) {
+    if (s.st_size < maxsize)
+      md5 = md5_digest_file(path);
+    else
+      md5 = "TOOLARGETOHASH";
+  }
 
   json_object *jobj           = json_object_new_object();
   json_object *j_timestamp    = json_object_new_double(timestamp());
