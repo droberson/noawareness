@@ -14,6 +14,7 @@
 
 #include "error.h"
 #include "net.h"
+#include "md5.h"
 #include "inotify_common.h"
 #include "time_common.h"
 
@@ -112,7 +113,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   struct stat   s;
   //struct passwd *pwent;
   //struct group  *g;
-  char          hashstr[] = "ahashyhashhash";
+  char          *md5;
 
   while (current->wd != e->wd)
     current = current->next;
@@ -173,9 +174,8 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
       snprintf(permstr, sizeof(permstr), "%o", s.st_mode);
   }
 
-  //if (hash)
-    // TODO if file is over X bytes, dont hash
-    // do hash
+  if (hash) // TODO if file is over X bytes, dont hash
+    md5 = md5_digest_file(path);
 
   json_object *jobj           = json_object_new_object();
   json_object *j_timestamp    = json_object_new_double(timestamp());
@@ -186,6 +186,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   json_object *j_uid;
   json_object *j_gid;
   json_object *j_perm;
+  json_object *j_size;
   json_object *j_md5;
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
@@ -198,14 +199,16 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
     j_uid  = json_object_new_int(s.st_uid);
     j_gid  = json_object_new_int(s.st_gid);
     j_perm = json_object_new_string(permstr);
+    j_size = json_object_new_int(s.st_size);
 
     json_object_object_add(jobj, "uid", j_uid);
     json_object_object_add(jobj, "gid", j_gid);
     json_object_object_add(jobj, "permissions", j_perm);
+    json_object_object_add(jobj, "size", j_size);
   }
 
   if (hash) {
-    j_md5 = json_object_new_string(hashstr);
+    j_md5 = json_object_new_string(md5);
     json_object_object_add(jobj, "md5", j_md5);
   }
 
