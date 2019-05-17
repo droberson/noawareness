@@ -10,9 +10,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
-//#include <sys/inotify.h>
 #include <sys/select.h>
-//#include <sys/stat.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -23,11 +21,7 @@
 #include <linux/cn_proc.h>
 
 #include "net.h"
-#include "md5.h"
-#include "proc.h"
 #include "netlink_events.h"
-#include "time_common.h"
-#include "string_common.h"
 #include "inotify_common.h"
 
 // TODO syslog
@@ -58,14 +52,13 @@
 /*
  * Globals
  */
-sock_t                  sock;
-bool                    daemonize = false;
-char                    *pidfile = "/var/run/noawareness.pid";
-char                    hostname[HOST_NAME_MAX];
-char                    *inotifyconfig = NULL;
-char                    *log_server = NULL;
-unsigned short          log_server_port = 55555;
-//extern inotify_t        *head;
+sock_t  sock;
+bool    daemonize = false;
+char   *pidfile = "/var/run/noawareness.pid";
+char    hostname[HOST_NAME_MAX];
+char    *inotifyconfig = NULL;
+char    *log_server = NULL;
+port_t  log_server_port = 55555;
 
 
 void handle_netlink_message(struct cn_msg *cn_message) {
