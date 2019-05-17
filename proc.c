@@ -8,6 +8,7 @@
 
 #include <linux/limits.h>
 
+#include "error.h"
 #include "proc.h"
 #include "string_common.h"
 
@@ -27,7 +28,7 @@ char *proc_get_exe_path(pid_t pid) {
   snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
 
   if (readlink(exe_path, real_path, PATH_MAX) == -1)
-    fprintf(stderr, "readlink (%s): %s\n", exe_path, strerror(errno));
+    error("readlink (%s): %s\n", exe_path, strerror(errno));
 
   return real_path;
 }
@@ -122,7 +123,7 @@ struct proc_status proc_get_status(pid_t pid) {
 
   fp = fopen(proc_status, "r");
   if (fp == NULL) {
-    fprintf(stderr, "error opening %s: %s\n", proc_status, strerror(errno));
+    error("error opening %s: %s\n", proc_status, strerror(errno));
     memset(result.name, 0x00, sizeof(result.name));
     return result;
   }

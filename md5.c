@@ -5,6 +5,7 @@
 #include <openssl/md5.h>
 
 #include "md5.h"
+#include "error.h"
 
 char *md5_digest_file(const char *path) {
   unsigned char   c[MD5_DIGEST_LENGTH];
@@ -16,7 +17,7 @@ char *md5_digest_file(const char *path) {
 
   fp = fopen(path, "rb");
   if (fp == NULL) {
-    fprintf(stderr, "md5_digest_file: unable to open %s for reading: %s\n",
+    error("md5_digest_file: unable to open %s for reading: %s\n",
 	    path,
 	    strerror(errno));
     return "";

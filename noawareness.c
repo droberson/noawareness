@@ -307,10 +307,8 @@ int main(int argc, char *argv[]) {
     error_fatal("socket(): %s\n", strerror(errno));
 
   //server = gethostbyname("localhost");
-  //if (server == NULL) {
-  //    fprintf(stderr, "gethostbyname(): %s\n", strerror(errno));
-  //    return EXIT_FAILURE;
-  //}
+  //if (server == NULL)
+  //    error_fatal("gethostbyname(): %s\n", strerror(errno));
 
   bzero(&s_addr, sizeof(s_addr));
   s_addr.sin_family = AF_INET;
