@@ -1,6 +1,7 @@
 CC=gcc
 CFLAGS=-g -Wall
-OFILES=noawareness.o md5.o string.o proc.o net.o time.o netlink_events.o
+OFILES=noawareness.o md5.o string.o proc.o net.o time.o netlink_events.o \
+       inotify.o
 LFLAGS=-static
 LIBS=-ljson-c -lssl -lcrypto
 
