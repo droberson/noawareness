@@ -8,7 +8,7 @@
 #include "md5.h"
 #include "error.h"
 
-#define MD5_SHOW_ERRORS 0
+#undef MD5_SHOW_ERRORS
 
 
 // Stole from Jouni Malinen <j@w1.fi>
