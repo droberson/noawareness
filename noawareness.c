@@ -26,8 +26,6 @@
 #include "inotify_common.h"
 
 // TODO syslog
-// TODO inotify event log to remote server
-// TODO JSON inotify event output
 // TODO SIGHUP reload inotify.conf
 // TODO map uids and gids to real names
   // implement getgrgid and getpwuid myself because cant link these static
