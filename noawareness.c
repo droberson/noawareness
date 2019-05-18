@@ -26,6 +26,7 @@
 #include "inotify_common.h"
 
 // TODO syslog
+// TODO option to log to a file instead of/in addition to remote logging
 // TODO SIGHUP reload inotify.conf
 // TODO map uids and gids to real names
   // implement getgrgid and getpwuid myself because cant link these static
@@ -44,7 +45,7 @@
 sock_t  sock;
 bool            daemonize       = false;
 char            *pidfile        = "/var/run/noawareness.pid";
-char            *inotifyconfig  = NULL;
+char            *inotifyconfig  = "inotify.conf";
 char            *log_server     = "127.0.0.1";
 port_t          log_server_port = 55555;
 unsigned long   maxsize         = 50000000; // 50mb
@@ -184,7 +185,7 @@ void select_inotify(int inotify) {
 
 void usage(const char *progname) {
   error("usage: %s [-h?]\n\n", progname);
-  error("    -h/-?      - print this menu and exit.\n");
+  error("    -h/-?      - Print this menu and exit.\n");
   error("    -d         - Daemonize. Default: %s\n",
 	(daemonize == true) ? "yes" : "no");
   error("    -i <path>  - Path to inotify config file. Default: %s\n",
