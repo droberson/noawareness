@@ -183,6 +183,7 @@ void select_inotify(int inotify) {
   }
 }
 
+// TODO make this correct
 void usage(const char *progname) {
   error("usage: %s [-h?]\n\n", progname);
   error("    -h/-?      - Print this menu and exit.\n");
