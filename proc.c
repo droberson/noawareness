@@ -1,3 +1,5 @@
+/* proc.c - various functions to deal with stuff in the /proc directory */
+
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -14,6 +16,8 @@
 #include "string_common.h"
 
 #undef SHOW_READLINK_ERRORS
+
+
 
 char *proc_cwd(pid_t pid) {
   char          cwd_path[PATH_MAX];
@@ -86,6 +90,8 @@ char *proc_get_cmdline(pid_t pid) {
   snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%d/cmdline", pid);
 
   fd = open(cmdline_path, O_RDONLY);
+  if (fd == -1)
+    return "";
   bytes = read(fd, buf, sizeof(buf));
   close(fd);
 
