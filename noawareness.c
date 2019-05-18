@@ -192,7 +192,7 @@ void usage(const char *progname) {
   error("    -m <bytes> - Maximum size of file to hash. Default: %d\n",
 	maxsize);
   error("    -P <path>  - Path to PID file. Default: %s\n", pidfile);
-  error("    -s <host>  - Remote log server. Default: %s\n", log_server);
+  error("    -s <IP>    - Remote log server. Default: %s\n", log_server);
   error("    -p <port>  - Port of remote server. Default: %d\n",
 	log_server_port);
 
@@ -229,6 +229,7 @@ int main(int argc, char *argv[]) {
       break;
 
     case 's': /* Remote server */
+      // TODO validate IP address
       log_server = optarg;
       break;
 
@@ -248,18 +249,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Get our hostname for reporting purposes */
+  /* Get our hostname for reporting purposes. */
   if (gethostname(hostname, sizeof(hostname)) == -1)
     error_fatal("gethostname(): %s\n", strerror(errno));
 
-  /* Create inotify descriptor */
+  /* Create inotify descriptor. */
   inotify = inotify_init();
   if (inotify == -1)
     error_fatal("inotify_init(): %s\n", strerror(errno));
 
   inotify_add_files(inotify, inotifyconfig);
 
-  /* Create netlink socket */
+  /* Create netlink socket. */
   netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
   if (netlink == -1)
     error_fatal("error creating netlink socket: %s\n", strerror(errno));
@@ -302,24 +303,18 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  /* Create udp socket for sending the logs */
-  // TODO resolve hostnames
+  /* Create UDP socket for sending the logs. */
   struct sockaddr_in  s_addr;
-  //struct hostent      *server;
   sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (sock < 0)
     error_fatal("socket(): %s\n", strerror(errno));
 
-  //server = gethostbyname("localhost");
-  //if (server == NULL)
-  //    error_fatal("gethostbyname(): %s\n", strerror(errno));
-
   bzero(&s_addr, sizeof(s_addr));
   s_addr.sin_family = AF_INET;
-  s_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  s_addr.sin_port = htons(55555);
+  s_addr.sin_addr.s_addr = inet_addr(log_server);
+  s_addr.sin_port = htons(log_server_port);
 
-  /* connect() so you dont have to use sendto() */
+  /* connect() UDP socket so you dont have to use sendto() */
   err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
   if (err == -1)
     error_fatal("connect(): %s\n", strerror(errno));
@@ -336,7 +331,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Set up select loop and get some */
+  /* Set up select loop and get some. */
   int setsize = netlink > inotify ? netlink + 1 : inotify + 1;
   for(;;) {
     FD_ZERO(&fdset);
