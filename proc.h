@@ -69,6 +69,7 @@ struct proc_status {
     gid_t   fsgid;
 };
 
+char *proc_cwd(pid_t);
 char *proc_environ(pid_t);
 char *proc_exe_path(pid_t);
 char *proc_get_exe_path(pid_t);

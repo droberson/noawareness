@@ -130,18 +130,20 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object *j_timestamp = json_object_new_double(timestamp());
   json_object *j_hostname = json_object_new_string(hostname);
   json_object *j_exepath;
-  json_object *j_process_pid;
-  json_object *j_process_tgid;
+  json_object *j_process_pid = \
+    json_object_new_int(event->event_data.exec.process_pid);
+  json_object *j_process_tgid = \
+    json_object_new_int(event->event_data.exec.process_tgid);
   json_object *j_md5;
   json_object *j_cmdline;
+  json_object *j_cwd;
   json_object *j_event_type = json_object_new_string("exec");
 
   exefile        = proc_get_exe_path(event->event_data.exec.process_pid);
-  j_exepath      = json_object_new_string(exefile);
-  j_process_pid  = json_object_new_int(event->event_data.exec.process_pid);
-  j_process_tgid = json_object_new_int(event->event_data.exec.process_tgid);
-  j_cmdline      = json_object_new_string(proc_get_cmdline(event->event_data.exec.process_pid));
   j_md5          = json_object_new_string(md5_digest_file(exefile));
+  j_exepath      = json_object_new_string(exefile);
+  j_cmdline      = json_object_new_string(proc_get_cmdline(event->event_data.exec.process_pid));
+  j_cwd          = json_object_new_string(proc_cwd(event->event_data.exec.process_pid));
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -151,6 +153,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object_object_add(jobj, "md5", j_md5);
   json_object_object_add(jobj, "exename", j_exepath);
   json_object_object_add(jobj, "cmdline", j_cmdline);
+  json_object_object_add(jobj, "cwd", j_cwd);
 
   return (char *)json_object_to_json_string(jobj);
 }

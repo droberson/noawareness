@@ -34,7 +34,6 @@
    // This will need something like 'ps' to get initial list of processes so
    // we have data for processes that have been running longer than this program
 // TODO limits? /proc/X/limits
-// TODO cwd /proc/X/cwd
 // TODO print startup message, add atexit() handler to log when this dies
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
@@ -50,6 +49,7 @@ char            *log_server     = "127.0.0.1";
 port_t          log_server_port = 55555;
 unsigned long   maxsize         = 50000000; // 50mb
 char            hostname[HOST_NAME_MAX];
+
 
 void handle_netlink_message(struct cn_msg *cn_message) {
   struct proc_event   *event;
@@ -104,7 +104,7 @@ void handle_netlink_message(struct cn_msg *cn_message) {
     break;
 
   default:
-    error("\nevent %d not handled yet\n", event->what);
+    error("event %d not handled yet\n", event->what);
     break;
   }
 

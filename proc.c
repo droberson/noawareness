@@ -13,6 +13,24 @@
 #include "md5.h"
 #include "string_common.h"
 
+#undef SHOW_READLINK_ERRORS
+
+char *proc_cwd(pid_t pid) {
+  char          cwd_path[PATH_MAX];
+  static char   cwd[PATH_MAX];
+
+  memset(cwd, 0x00, sizeof(cwd));
+  snprintf(cwd_path, sizeof(cwd_path), "/proc/%d/cwd", pid);
+
+  if (readlink(cwd_path, cwd, sizeof(cwd)) == -1) {
+#ifdef SHOW_READLINK_ERRORS
+    error("readlink %s: %s\n", cwd_path, strerror(errno));
+#endif /* SHOW_READLINK_ERRORS */
+    return "";
+  }
+
+  return cwd;
+}
 
 char *proc_environ(pid_t pid) {
   int           fd;
@@ -45,8 +63,12 @@ char *proc_get_exe_path(pid_t pid) {
   memset(real_path, 0x00, sizeof(real_path));
   snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
 
-  if (readlink(exe_path, real_path, PATH_MAX) == -1)
-    error("readlink (%s): %s\n", exe_path, strerror(errno));
+  if (readlink(exe_path, real_path, sizeof(real_path)) == -1) {
+#ifdef SHOW_READLINK_ERRORS
+    error("readlink %s: %s\n", exe_path, strerror(errno));
+#endif /* SHOW_READLINK_ERRORS */
+    return "";
+  }
 
   return real_path;
 }
