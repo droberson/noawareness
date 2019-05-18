@@ -83,8 +83,8 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   deleted = endswith(exepath, "(deleted)");
   j_deleted     = json_object_new_boolean(deleted);
 
-  /* do this after hashing md5, so we have a better chance of catching
-   * the process before it is closed
+  /* Do this after hashing md5, so we have a better chance of catching
+   * the process before it is closed.
    */
   status = proc_get_status(event->event_data.fork.parent_pid);
   j_cmdline = \
