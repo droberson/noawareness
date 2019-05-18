@@ -294,10 +294,6 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  *
  * Returns:
  *     char * containing serialized JSON object describing this event
- *
- * Note:
- *     This is triggered when setsid() happens. I am not sure of the
- *     forensic implications of this event, so it currently does nothing.
  */
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   // TODO hash of tracer, exefile/name, etc...
