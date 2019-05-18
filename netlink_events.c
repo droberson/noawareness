@@ -28,19 +28,13 @@ extern char hostname[HOST_NAME_MAX];
  *
  * TODO
  * - Deal with parent_pid and child_pid being the same somehow (see below)
- * - figure out a better way to hash the exefile. if you run something fast
- *   like 'id' or 'uname -a', handle_PROC_EVENT_EXEC() is not able to get
- *   the hash in time sometimes, resulting in blank fields output. Commenting
- *   this out makes it able to catch the hashes of executed files, which is
- *   probably more important than the forking process in most cases.
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   char                *exepath =				\
     proc_get_exe_path(event->event_data.fork.parent_pid);
   bool                deleted;
-  //char                *md5;
-  struct proc_status  status =				\
-    proc_get_status(event->event_data.fork.parent_pid);
+  char                *md5;
+  struct proc_status  status;
   json_object         *jobj = json_object_new_object();
   json_object         *j_timestamp = json_object_new_double(timestamp());
   json_object         *j_hostname = json_object_new_string(hostname);
@@ -51,7 +45,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object         *j_euid = json_object_new_int(status.euid);
   json_object         *j_gid = json_object_new_int(status.gid);
   json_object         *j_egid = json_object_new_int(status.egid);
-  //json_object         *j_md5;
+  json_object         *j_md5;
   json_object         *j_parent_pid = \
     json_object_new_int(event->event_data.fork.parent_pid);
   json_object         *j_parent_tgid = \
@@ -60,9 +54,12 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
     json_object_new_int(event->event_data.fork.child_pid);
   json_object         *j_child_tgid = \
     json_object_new_int(event->event_data.fork.child_tgid);
-  json_object         *j_cmdline = \
-    json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
+  json_object         *j_cmdline;
   json_object         *j_event_type = json_object_new_string("fork");
+
+  /* Do this before anything to have better chances of catching the hash */
+  md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
+  j_md5         = json_object_new_string(md5);
 
   /* If files are running, but have been deleted on disk, the
    * symbolic link in /proc/PID/exe has (deleted) appended to
@@ -86,8 +83,12 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   deleted = endswith(exepath, "(deleted)");
   j_deleted     = json_object_new_boolean(deleted);
 
-  //md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
-  //j_md5         = json_object_new_string(md5);
+  /* do this after hashing md5, so we have a better chance of catching
+   * the process before it is closed
+   */
+  status = proc_get_status(event->event_data.fork.parent_pid);
+  j_cmdline = \
+    json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -100,14 +101,14 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object_object_add(jobj, "euid", j_euid);
   json_object_object_add(jobj, "gid", j_gid);
   json_object_object_add(jobj, "egid", j_egid);
-  //json_object_object_add(jobj, "md5", j_md5);
+  json_object_object_add(jobj, "md5", j_md5);
   json_object_object_add(jobj, "parent_pid", j_parent_pid);
   json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
   json_object_object_add(jobj, "child_pid", j_child_pid);
   json_object_object_add(jobj, "child_tgid", j_child_tgid);
 
   return (char *)json_object_to_json_string(jobj);
-  // TODO parent and child are same data when this event is caught.
+  // Parent and child are same data when this event is caught.
   //printf("%s %s\n", proc_get_exe_path(event->event_data.fork.parent_pid),
   //	       proc_get_cmdline(event->event_data.fork.child_pid));
 }
