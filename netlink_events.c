@@ -124,6 +124,9 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  *
  * Returns:
  *     char * containing serialized JSON object describing this event.
+ *
+ * TODO:
+ * - uid and gid of process owner
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   char        *exefile;
