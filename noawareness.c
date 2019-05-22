@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
 
 
   /* Parse CLI options */
-  while((opt = getopt(argc, argv, "dp:i:h?")) != -1) {
+  while((opt = getopt(argc, argv, "dm:s:p:P:i:h?")) != -1) {
     switch (opt) {
     case 'd': /* Daemonize */
       daemonize = (daemonize == true) ? false : true;
