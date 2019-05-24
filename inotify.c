@@ -72,13 +72,13 @@ void inotify_add_files(int fd, const char *path) {
   // - /root
   // - /var/www/
   if (path == NULL) {
-    error("no inotify config provided!\n");
+    error("no inotify config provided!");
     return;
   }
 
   fp = fopen(path, "r");
   if (fp == NULL)
-    error_fatal("Unable to open inotify config file %s: %s\n",
+    error_fatal("Unable to open inotify config file %s: %s",
 	    path, strerror(errno));
 
   // TODO add whether to look for just writes, creation, etc in config file.
@@ -89,7 +89,7 @@ void inotify_add_files(int fd, const char *path) {
 
     wd = inotify_add_watch(fd, buf, IN_ALL_EVENTS);
     if (wd == -1)
-      error("inotify_add_watch %s: %s\n", buf, strerror(errno));
+      error("inotify_add_watch %s: %s", buf, strerror(errno));
     else
       inotify_add(wd, buf);
   }
@@ -160,7 +160,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
       if (stat(path, &s) == 0) {
 	wd = inotify_add_watch(inotify, path, IN_ALL_EVENTS);
 	if (wd == -1) {
-	  error("inotify_add_watch %s: %s\n", path, strerror(errno));
+	  error("inotify_add_watch %s: %s", path, strerror(errno));
 	} else {
 	  // TODO print new directory added
 	  inotify_add(wd, path);
