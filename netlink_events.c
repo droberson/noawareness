@@ -40,11 +40,9 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object         *j_timestamp   = json_object_new_double(timestamp());
   json_object         *j_hostname    = json_object_new_string(hostname);
   json_object         *j_exepath     = json_object_new_string(exepath);
-  json_object         *j_name        = json_object_new_string(status.name);
-  json_object         *j_uid         = json_object_new_int(status.uid);
-  json_object         *j_euid        = json_object_new_int(status.euid);
-  json_object         *j_gid         = json_object_new_int(status.gid);
-  json_object         *j_egid        = json_object_new_int(status.egid);
+  json_object         *j_name;
+  json_object         *j_uid, *j_euid;
+  json_object         *j_gid, *j_egid;
   json_object         *j_parent_pid  = json_object_new_int(parent_pid);
   json_object         *j_parent_tgid = \
     json_object_new_int(event->event_data.fork.parent_tgid);
@@ -86,6 +84,12 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
    */
   status = proc_get_status(parent_pid);
   j_cmdline = json_object_new_string(proc_get_cmdline(parent_pid));
+
+  j_name = json_object_new_string(status.name);
+  j_uid  = json_object_new_int(status.uid);
+  j_euid = json_object_new_int(status.euid);
+  j_gid  = json_object_new_int(status.gid);
+  j_egid = json_object_new_int(status.egid);
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
