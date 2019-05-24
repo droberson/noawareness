@@ -312,21 +312,31 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  *
  * Returns:
  *     char * containing serialized JSON object describing this event
+ *
+ * Note:
+ *     This appears to be called AFTER ptrace() calls, so obtaining the
+ *     path, hash, etc of the tracer process may fail sometimes.
  */
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-  // TODO hash of tracer, exefile/name, etc...
   json_object *jobj = json_object_new_object();
-  json_object *j_timestamp = json_object_new_double(timestamp());
-  json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_pid = \
+  char        *targetpath    = \
+    proc_get_exe_path(event->event_data.ptrace.process_pid);
+  char        *tracerpath    =					\
+    proc_get_exe_path(event->event_data.ptrace.tracer_pid);
+
+  json_object *j_timestamp   = json_object_new_double(timestamp());
+  json_object *j_hostname    = json_object_new_string(hostname);
+  json_object *j_pid         = \
     json_object_new_int(event->event_data.ptrace.process_pid);
-  json_object *j_tgid = \
+  json_object *j_tgid        = \
     json_object_new_int(event->event_data.ptrace.process_tgid);
-  json_object *j_tracer_pid = \
+  json_object *j_tracer_pid  = \
     json_object_new_int(event->event_data.ptrace.tracer_pid);
   json_object *j_tracer_tgid = \
     json_object_new_int(event->event_data.ptrace.tracer_tgid);
-  json_object *j_event_type = json_object_new_string("ptrace");
+  json_object *j_tracer_path = json_object_new_string(tracerpath);
+  json_object *j_target_path = json_object_new_string(targetpath);
+  json_object *j_event_type  = json_object_new_string("ptrace");
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -335,6 +345,8 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object_object_add(jobj, "tgid", j_tgid);
   json_object_object_add(jobj, "tracer_pid", j_tracer_pid);
   json_object_object_add(jobj, "tracer_tgid", j_tracer_tgid);
+  json_object_object_add(jobj, "tracer_path", j_tracer_path);
+  json_object_object_add(jobj, "target_path", j_target_path);
 
   return (char *)json_object_to_json_string(jobj);
 }
