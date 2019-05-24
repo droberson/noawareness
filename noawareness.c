@@ -6,6 +6,7 @@
 #include <string.h>
 #include <limits.h>
 #include <syslog.h>
+#include <signal.h>
 //#include <pwd.h>
 //#include <grp.h>
 
@@ -27,8 +28,8 @@
 #include "inotify_common.h"
 
 // TODO ipv6
-// TODO option to log to a file instead of/in addition to remote logging
-// TODO SIGHUP reload inotify.conf
+// TODO SIGHUP
+  // reload inotify.conf
 // TODO map uids and gids to real names
   // implement getgrgid and getpwuid myself because cant link these static
 // TODO permissions, attributes, owner, groupships of files
@@ -36,7 +37,7 @@
    // This will need something like 'ps' to get initial list of processes so
    // we have data for processes that have been running longer than this program
 // TODO limits? /proc/X/limits
-// TODO print startup message, add atexit() handler to log when this dies
+// TODO atexit() handler to log when this dies
 
 // https://www.kernel.org/doc/Documentation/connector/connector.txt
 
@@ -47,7 +48,9 @@ sock_t          sock;
 bool            daemonize       = false;
 bool            quiet           = false;
 bool            use_syslog      = true;
-FILE            *outfile        = NULL;
+bool            log_to_file     = false;
+char            *outfile        = "/var/log/noawareness.json.log";
+FILE            *outfilep;
 char            *pidfile        = "/var/run/noawareness.pid";
 char            *inotifyconfig  = "inotify.conf";
 bool            remote_logging  = true;
@@ -55,6 +58,11 @@ char            *log_server     = "127.0.0.1";
 port_t          log_server_port = 55555;
 unsigned long   maxsize         = 50000000; // 50mb
 char            hostname[HOST_NAME_MAX];
+
+/*
+ * Prototypes
+ */
+static void handle_sighup(int, siginfo_t *, void *);
 
 
 void output(const char *msg) {
@@ -65,20 +73,19 @@ void output(const char *msg) {
   if (remote_logging)
     sockprintf(sock, "%s\r\n", msg);
 
-  // if outfile, log to outfile
+  if (log_to_file)
+    fprintf(outfilep, "%s\n", msg);
 }
 
 void msg(const char *msg) {
-  if (quiet)
-    return;
-
-  printf("%s\n", msg);
-
   if (use_syslog)
     syslog(LOG_INFO | LOG_USER, "%s", msg);
+
+  if (!daemonize)
+    printf("%s\n", msg);
 }
 
-void handle_netlink_message(struct cn_msg *cn_message) {
+static void handle_netlink_message(struct cn_msg *cn_message) {
   struct proc_event   *event;
   char                *msg;
   char                *environment;
@@ -112,7 +119,7 @@ void handle_netlink_message(struct cn_msg *cn_message) {
     msg = handle_PROC_EVENT_PTRACE(event);
     break;
 
-  case PROC_EVENT_GID:
+   case PROC_EVENT_GID:
     msg = handle_PROC_EVENT_GID(event);
     break;
 
@@ -149,7 +156,7 @@ void write_pid_file(const char *path, pid_t pid) {
   fclose(pidfile);
 }
 
-void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
+static void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
   int                 recv_length;
   socklen_t           nl_kernel_len;
   struct nlmsghdr     *nlh;
@@ -187,7 +194,7 @@ void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn
   }
 }
 
-void select_inotify(int inotify) {
+static void select_inotify(int inotify) {
   char                  *p;
   int                   res;
   char                  buf[INOTIFY_BUF_LEN];
@@ -204,7 +211,38 @@ void select_inotify(int inotify) {
   }
 }
 
-void usage(const char *progname) {
+static FILE *open_log_file(const char *outfile) {
+  FILE *fp;
+
+  fp = fopen(outfile, "a+");
+  if (fp == NULL)
+    error_fatal("Unable to open log file: %s", strerror(errno));
+
+  return fp;
+}
+
+static void install_sighup_handler() {
+  struct sigaction act = {0};
+
+  act.sa_sigaction = &handle_sighup;
+  act.sa_flags = SA_SIGINFO;
+
+  if (sigaction(SIGHUP, &act, NULL) < 0)
+    error_fatal("sigaction(): %s", strerror(errno));
+}
+
+static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
+  // TODO inotify config reload
+  msg("Caught SIGHUP.");
+
+  if (log_to_file) {
+    msg("Reloading JSON log file");
+    fclose(outfilep);
+    outfilep = open_log_file(outfile);
+  }
+}
+
+static void usage(const char *progname) {
   fprintf(stderr, "usage: %s [-h?]\n\n", progname);
   fprintf(stderr, "    -h/-?      - Print this menu and exit.\n");
   fprintf(stderr, "    -d         - Daemonize. Default: %s\n",
@@ -213,6 +251,10 @@ void usage(const char *progname) {
 	  inotifyconfig);
   fprintf(stderr, "    -m <bytes> - Max size of file to hash. Default: %ld\n",
 	  maxsize);
+  fprintf(stderr, "    -o <file>  - Outfile for JSON output, Default: %s\n",
+	  outfile);
+  fprintf(stderr, "    -O         - Toggle local JSON logging. Default: %s\n",
+	  log_to_file ? "true" : "false");
   fprintf(stderr, "    -P <path>  - Path to PID file. Default: %s\n", pidfile);
   fprintf(stderr, "    -r         - Toggle remote logging. Default: %s\n",
 	  remote_logging ? "true" : "false");
@@ -243,7 +285,7 @@ int main(int argc, char *argv[]) {
 
 
   /* Parse CLI options */
-  while((opt = getopt(argc, argv, "qrdm:s:Sp:rP:i:h?")) != -1) {
+  while((opt = getopt(argc, argv, "qrdm:s:So:Op:rP:i:h?")) != -1) {
     switch (opt) {
     case 'd': /* Daemonize */
       daemonize = daemonize ? false : true;
@@ -255,6 +297,16 @@ int main(int argc, char *argv[]) {
 
     case 'm': /* Maximum filesize to hash */
       maxsize = atol(optarg);
+      break;
+
+    case 'o': /* Path to outfile */
+      // TODO check if writeable
+      outfile = optarg;
+      log_to_file = true;
+      break;
+
+    case 'O': /* Toggle logging to a file */
+      log_to_file = log_to_file ? false : true;
       break;
 
     case 'p': /* Remote server port */
@@ -290,6 +342,17 @@ int main(int argc, char *argv[]) {
       usage(argv[0]);
     }
   }
+
+  /* Set up syslog() */
+  if (use_syslog)
+    openlog("noawareness", LOG_PID, LOG_USER);
+
+  /* SIGHUP handler. */
+  install_sighup_handler();
+
+  /* Open log file. */
+  if (log_to_file)
+    outfilep = open_log_file(outfile);
 
   /* Get our hostname for reporting purposes. */
   if (gethostname(hostname, sizeof(hostname)) == -1)
@@ -383,7 +446,8 @@ int main(int argc, char *argv[]) {
     FD_SET(inotify, &fdset);
 
     if (select(setsize, &fdset, NULL, NULL, NULL) < 0)
-      error_fatal("select(): %s", strerror(errno));
+      if (errno != EINTR)
+	error_fatal("select(): %s", strerror(errno));
 
     for(int i = 0; i < FD_SETSIZE; i++) {
       if (FD_ISSET(i, &fdset)) {
@@ -402,6 +466,7 @@ int main(int argc, char *argv[]) {
   /* Shouldn't ever get here */
   close(netlink);
   close(sock);
+	    closelog();
 
   return EXIT_SUCCESS;
 }
