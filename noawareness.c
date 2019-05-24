@@ -26,6 +26,7 @@
 #include "inotify_common.h"
 
 // TODO syslog
+// TODO ipv6
 // TODO option to log to a file instead of/in addition to remote logging
 // TODO SIGHUP reload inotify.conf
 // TODO map uids and gids to real names
