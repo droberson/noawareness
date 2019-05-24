@@ -164,7 +164,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object_object_add(jobj, "gid", j_gid);
   json_object_object_add(jobj, "egid", j_egid);
   json_object_object_add(jobj, "md5", j_md5);
-  json_object_object_add(jobj, "exename", j_exepath);
+  json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "cmdline", j_cmdline);
   json_object_object_add(jobj, "cwd", j_cwd);
 
@@ -248,13 +248,14 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
  *     are nearly identical.
  */
 char *handle_PROC_EVENT_UID(struct proc_event *event) {
-  // TODO lookup pid exefile/name, hash, ...
+  pid_t       pid           = event->event_data.id.process_pid;
+  char        *exefile      = proc_get_exe_path(pid);
   json_object *jobj         = json_object_new_object();
   json_object *j_timestamp  = json_object_new_double(timestamp());
   json_object *j_hostname   = json_object_new_string(hostname);
-  json_object *j_pid        =					\
-    json_object_new_int(event->event_data.id.process_pid);
-  json_object *j_tgid       =					\
+  json_object *j_exepath    = json_object_new_string(exefile);
+  json_object *j_pid        = json_object_new_int(pid);
+  json_object *j_tgid       = \
     json_object_new_int(event->event_data.id.process_tgid);
   json_object *j_ruid       = json_object_new_int(event->event_data.id.r.ruid);
   json_object *j_euid       = json_object_new_int(event->event_data.id.e.euid);
@@ -263,6 +264,7 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
   json_object_object_add(jobj, "event_type", j_event_type);
+  json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "pid", j_pid);
   json_object_object_add(jobj, "tgid", j_tgid);
   json_object_object_add(jobj, "ruid", j_ruid);
@@ -272,19 +274,23 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
 }
 
 char *handle_PROC_EVENT_GID(struct proc_event *event) {
-  // TODO lookup pid exefile/name, hash, ...
-  json_object *jobj = json_object_new_object();
-  json_object *j_timestamp = json_object_new_double(timestamp());
-  json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_pid = json_object_new_int(event->event_data.id.process_pid);
-  json_object *j_tgid = json_object_new_int(event->event_data.id.process_tgid);
-  json_object *j_rgid = json_object_new_int(event->event_data.id.r.rgid);
-  json_object *j_egid = json_object_new_int(event->event_data.id.e.egid);
+  pid_t       pid           = event->event_data.id.process_pid;
+  char        *exefile      = proc_get_exe_path(pid);
+  json_object *jobj         = json_object_new_object();
+  json_object *j_timestamp  = json_object_new_double(timestamp());
+  json_object *j_hostname   = json_object_new_string(hostname);
+  json_object *j_exepath    = json_object_new_string(exefile);
+  json_object *j_pid        = json_object_new_int(pid);
+  json_object *j_tgid       = \
+    json_object_new_int(event->event_data.id.process_tgid);
+  json_object *j_rgid       = json_object_new_int(event->event_data.id.r.rgid);
+  json_object *j_egid       = json_object_new_int(event->event_data.id.e.egid);
   json_object *j_event_type = json_object_new_string("gid");
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
   json_object_object_add(jobj, "event_type", j_event_type);
+  json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "pid", j_pid);
   json_object_object_add(jobj, "tgid", j_tgid);
   json_object_object_add(jobj, "rgid", j_rgid);
