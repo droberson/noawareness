@@ -23,6 +23,8 @@ inotify_t               *head = NULL;
 extern char             hostname[HOST_NAME_MAX];
 extern sock_t           sock;
 extern bool             daemonize;
+extern bool             remote_logging;
+extern bool             quiet;
 extern unsigned long    maxsize;
 
 void inotify_add(int wd, const char *filename) {
@@ -217,6 +219,10 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   }
 
   char *msg = (char *)json_object_to_json_string(jobj);
-  if (!daemonize) printf("%s\n", msg);
-  sockprintf(sock, "%s\r\n", msg);
+  // TODO reuse output()
+  if (!daemonize)
+    if (!quiet)
+      printf("%s\n", msg);
+  if (remote_logging)
+    sockprintf(sock, "%s\r\n", msg);
 }
