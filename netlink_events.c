@@ -126,11 +126,11 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   pid_t                 pid = event->event_data.exec.process_pid;
   char                  *exefile = proc_get_exe_path(pid);
   struct proc_status    procstatus;
-  json_object           *jobj = json_object_new_object();
-  json_object           *j_timestamp = json_object_new_double(timestamp());
-  json_object           *j_hostname = json_object_new_string(hostname);
-  json_object           *j_exepath;
-  json_object           *j_process_pid = json_object_new_int(pid);
+  json_object           *jobj           = json_object_new_object();
+  json_object           *j_timestamp    = json_object_new_double(timestamp());
+  json_object           *j_hostname     = json_object_new_string(hostname);
+  json_object           *j_exepath      = json_object_new_string(exefile);
+  json_object           *j_process_pid  = json_object_new_int(pid);
   json_object           *j_process_tgid = \
     json_object_new_int(event->event_data.exec.process_tgid);
   json_object           *j_md5;
@@ -138,8 +138,9 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object           *j_cwd;
   json_object           *j_uid, *j_euid;
   json_object           *j_gid, *j_egid;
-  json_object           *j_event_type = json_object_new_string("exec");
+  json_object           *j_event_type   = json_object_new_string("exec");
 
+  /* Do this before everything to maximize chances of catching it */
   j_md5          = json_object_new_string(md5_digest_file(exefile));
   j_exepath      = json_object_new_string(exefile);
   j_cmdline      = json_object_new_string(proc_get_cmdline(pid));
@@ -186,10 +187,10 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   // TODO what happens when you pass a very large environment?
-  pid_t                 pid = event->event_data.exec.process_pid;
-  char                  *exefile = proc_get_exe_path(pid);
+  pid_t                 pid            = event->event_data.exec.process_pid;
+  char                  *exefile       = proc_get_exe_path(pid);
   struct proc_status    procstatus;
-  json_object           *jobj = json_object_new_object();
+  json_object           *jobj          = json_object_new_object();
   json_object           *j_timestamp   = json_object_new_double(timestamp());
   json_object           *j_hostname    = json_object_new_string(hostname);
   json_object           *j_exepath     = json_object_new_string(exefile);
