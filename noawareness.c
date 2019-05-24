@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <limits.h>
+#include <syslog.h>
 //#include <pwd.h>
 //#include <grp.h>
 
@@ -25,7 +26,6 @@
 #include "netlink_events.h"
 #include "inotify_common.h"
 
-// TODO syslog
 // TODO ipv6
 // TODO option to log to a file instead of/in addition to remote logging
 // TODO SIGHUP reload inotify.conf
@@ -43,15 +43,40 @@
 /*
  * Globals
  */
-sock_t  sock;
+sock_t          sock;
 bool            daemonize       = false;
+bool            quiet           = false;
+bool            use_syslog      = true;
+FILE            *outfile        = NULL;
 char            *pidfile        = "/var/run/noawareness.pid";
 char            *inotifyconfig  = "inotify.conf";
+bool            remote_logging  = true;
 char            *log_server     = "127.0.0.1";
 port_t          log_server_port = 55555;
 unsigned long   maxsize         = 50000000; // 50mb
 char            hostname[HOST_NAME_MAX];
 
+
+void output(const char *msg) {
+  if (!daemonize)
+    if (!quiet)
+      printf("%s\n", msg);
+
+  if (remote_logging)
+    sockprintf(sock, "%s\r\n", msg);
+
+  // if outfile, log to outfile
+}
+
+void msg(const char *msg) {
+  if (quiet)
+    return;
+
+  printf("%s\n", msg);
+
+  if (use_syslog)
+    syslog(LOG_INFO | LOG_USER, "%s", msg);
+}
 
 void handle_netlink_message(struct cn_msg *cn_message) {
   struct proc_event   *event;
@@ -72,9 +97,7 @@ void handle_netlink_message(struct cn_msg *cn_message) {
   case PROC_EVENT_EXEC:
     msg = handle_PROC_EVENT_EXEC(event);
     environment = handle_PROC_EVENT_EXEC_environment(event);
-    if (!daemonize)
-      printf("%s\n", environment);
-    sockprintf(sock, "%s\r\n", environment);
+    output(environment);
     break;
 
   case PROC_EVENT_EXIT:
@@ -106,16 +129,13 @@ void handle_netlink_message(struct cn_msg *cn_message) {
     break;
 
   default:
-    error("event %d not handled yet\n", event->what);
+    error("event %d not handled yet", event->what);
     break;
   }
 
   /* If we have data to output, deal with it. */
-  if (msg != NULL) {
-    if (!daemonize)
-      printf("%s\n", msg);
-    sockprintf(sock, "%s\r\n", msg);
-  }
+  if (msg != NULL)
+    output(msg);
 }
 
 void write_pid_file(const char *path, pid_t pid) {
@@ -123,7 +143,7 @@ void write_pid_file(const char *path, pid_t pid) {
 
   pidfile = fopen(path, "w");
   if (pidfile == NULL)
-    error_fatal("Unable to open PID file %s: %s\n", path, strerror(errno));
+    error_fatal("Unable to open PID file %s: %s", path, strerror(errno));
 
   fprintf(pidfile, "%d", pid);
   fclose(pidfile);
@@ -175,7 +195,7 @@ void select_inotify(int inotify) {
 
   res = read(inotify, buf, sizeof(buf));
   if ((res == 0) || (res == -1))
-    error_fatal("read() on inotify fd: %s\n", strerror(errno));
+    error_fatal("read() on inotify fd: %s", strerror(errno));
 
   for (p = buf; p < buf + res; ) {
     event = (struct inotify_event *) p;
@@ -184,20 +204,26 @@ void select_inotify(int inotify) {
   }
 }
 
-// TODO make this correct
 void usage(const char *progname) {
-  error("usage: %s [-h?]\n\n", progname);
-  error("    -h/-?      - Print this menu and exit.\n");
-  error("    -d         - Daemonize. Default: %s\n",
-	(daemonize == true) ? "yes" : "no");
-  error("    -i <path>  - Path to inotify config file. Default: %s\n",
-	inotifyconfig);
-  error("    -m <bytes> - Maximum size of file to hash. Default: %d\n",
-	maxsize);
-  error("    -P <path>  - Path to PID file. Default: %s\n", pidfile);
-  error("    -s <IP>    - Remote log server. Default: %s\n", log_server);
-  error("    -p <port>  - Port of remote server. Default: %d\n",
-	log_server_port);
+  fprintf(stderr, "usage: %s [-h?]\n\n", progname);
+  fprintf(stderr, "    -h/-?      - Print this menu and exit.\n");
+  fprintf(stderr, "    -d         - Daemonize. Default: %s\n",
+	  daemonize ? "yes" : "no");
+  fprintf(stderr, "    -i <path>  - Path to inotify config file. Default: %s\n",
+	  inotifyconfig);
+  fprintf(stderr, "    -m <bytes> - Max size of file to hash. Default: %ld\n",
+	  maxsize);
+  fprintf(stderr, "    -P <path>  - Path to PID file. Default: %s\n", pidfile);
+  fprintf(stderr, "    -r         - Toggle remote logging. Default: %s\n",
+	  remote_logging ? "true" : "false");
+  fprintf(stderr, "    -s <IP>    - Remote log server. Default: %s\n",
+	  log_server);
+  fprintf(stderr, "    -S         - Toggle syslog. Default: %s\n",
+	  use_syslog ? "true" : "false");
+  fprintf(stderr, "    -p <port>  - Port of remote server. Default: %d\n",
+	  log_server_port);
+  fprintf(stderr, "    -q         - Toggle quiet mode. Default: %s\n",
+	  quiet ? "true" : "false");
 
   exit(EXIT_FAILURE);
 }
@@ -217,10 +243,14 @@ int main(int argc, char *argv[]) {
 
 
   /* Parse CLI options */
-  while((opt = getopt(argc, argv, "dm:s:p:P:i:h?")) != -1) {
+  while((opt = getopt(argc, argv, "qrdm:s:Sp:rP:i:h?")) != -1) {
     switch (opt) {
     case 'd': /* Daemonize */
-      daemonize = (daemonize == true) ? false : true;
+      daemonize = daemonize ? false : true;
+      break;
+
+    case 'i': /* inotify config file location */
+      inotifyconfig = optarg;
       break;
 
     case 'm': /* Maximum filesize to hash */
@@ -231,21 +261,29 @@ int main(int argc, char *argv[]) {
       log_server_port = atoi(optarg);
       break;
 
-    case 's': /* Remote server */
-      log_server = optarg;
-      if (!validate_ipv4(log_server))
-	  error_fatal("Invalid IP address: %s\n", log_server);
-      break;
-
     case 'P': /* PID file location */
       pidfile = optarg;
       break;
 
-    case 'i': /* inotify config file location */
-      inotifyconfig = optarg;
+    case 'q': /* Toggle quiet mode */
+      quiet = quiet ? false : true;
       break;
 
-      /* All of these effectively call usage(), so roll them over */
+    case 'r': /* Toggle remote logging */
+      remote_logging = remote_logging ? false : true;
+      break;
+
+    case 's': /* Remote server */
+      log_server = optarg;
+      if (!validate_ipv4(log_server))
+	  error_fatal("Invalid IP address: %s", log_server);
+      break;
+
+    case 'S': /* Toggle syslog */
+      use_syslog = use_syslog ? false : true;
+      break;
+
+    /* All of these effectively call usage(), so roll them over */
     case 'h':
     case '?':
     default:
@@ -255,19 +293,19 @@ int main(int argc, char *argv[]) {
 
   /* Get our hostname for reporting purposes. */
   if (gethostname(hostname, sizeof(hostname)) == -1)
-    error_fatal("gethostname(): %s\n", strerror(errno));
+    error_fatal("gethostname(): %s", strerror(errno));
 
   /* Create inotify descriptor. */
   inotify = inotify_init();
   if (inotify == -1)
-    error_fatal("inotify_init(): %s\n", strerror(errno));
+    error_fatal("inotify_init(): %s", strerror(errno));
 
   inotify_add_files(inotify, inotifyconfig);
 
   /* Create netlink socket. */
   netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
   if (netlink == -1)
-    error_fatal("error creating netlink socket: %s\n", strerror(errno));
+    error_fatal("error creating netlink socket: %s", strerror(errno));
 
   nl_kernel.nl_family = AF_NETLINK;
   nl_kernel.nl_groups = CN_IDX_PROC;
@@ -279,7 +317,7 @@ int main(int argc, char *argv[]) {
 
   err = bind(netlink, (struct sockaddr *)&nl_userland, sizeof(nl_userland));
   if (err == -1)
-    error_fatal("error binding netlink socket: %s\n", strerror(errno));
+    error_fatal("error binding netlink socket: %s", strerror(errno));
 
   memset(buf, 0x00, sizeof(buf));
   nl_header = (struct nlmsghdr *)buf;
@@ -302,32 +340,34 @@ int main(int argc, char *argv[]) {
 
   err = send(netlink, nl_header, nl_header->nlmsg_len, 0);
   if (err != nl_header->nlmsg_len) {
-    error("send: %s\n", strerror(errno));
+    error("send: %s", strerror(errno));
     close(netlink);
     return EXIT_FAILURE;
   }
 
   /* Create UDP socket for sending the logs. */
-  struct sockaddr_in  s_addr;
-  sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock < 0)
-    error_fatal("socket(): %s\n", strerror(errno));
+  if (remote_logging) {
+    struct sockaddr_in  s_addr;
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0)
+      error_fatal("socket(): %s", strerror(errno));
 
-  bzero(&s_addr, sizeof(s_addr));
-  s_addr.sin_family = AF_INET;
-  s_addr.sin_addr.s_addr = inet_addr(log_server);
-  s_addr.sin_port = htons(log_server_port);
+    bzero(&s_addr, sizeof(s_addr));
+    s_addr.sin_family = AF_INET;
+    s_addr.sin_addr.s_addr = inet_addr(log_server);
+    s_addr.sin_port = htons(log_server_port);
 
-  /* connect() UDP socket so you dont have to use sendto() */
-  err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
-  if (err == -1)
-    error_fatal("connect(): %s\n", strerror(errno));
+    /* connect() UDP socket so you dont have to use sendto() */
+    err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
+    if (err == -1)
+      error_fatal("connect(): %s", strerror(errno));
+  }
 
   /* Daemonize the process if desired. */
   if (daemonize) {
     pid = fork();
     if (pid < 0)
-      error_fatal("fork(): %s\n", strerror(errno));
+      error_fatal("fork(): %s", strerror(errno));
 
     else if (pid > 0) {
       write_pid_file(pidfile, pid);
@@ -343,7 +383,7 @@ int main(int argc, char *argv[]) {
     FD_SET(inotify, &fdset);
 
     if (select(setsize, &fdset, NULL, NULL, NULL) < 0)
-      error_fatal("select(): %s\n", strerror(errno));
+      error_fatal("select(): %s", strerror(errno));
 
     for(int i = 0; i < FD_SETSIZE; i++) {
       if (FD_ISSET(i, &fdset)) {
@@ -354,7 +394,7 @@ int main(int argc, char *argv[]) {
           select_netlink(netlink, nl_kernel, cn_message);
 
         else
-          error("idk wtf this fd is: %d\n", i);
+          error("select(): unhandled fd: %d", i);
       }
     }
   } /* for(;;) */
