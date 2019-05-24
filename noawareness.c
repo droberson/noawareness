@@ -231,8 +231,9 @@ int main(int argc, char *argv[]) {
       break;
 
     case 's': /* Remote server */
-      // TODO validate IP address
       log_server = optarg;
+      if (!validate_ipv4(log_server))
+	  error_fatal("Invalid IP address: %s\n", log_server);
       break;
 
     case 'P': /* PID file location */
