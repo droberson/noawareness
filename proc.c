@@ -78,23 +78,21 @@ char *proc_get_exe_path(pid_t pid) {
 }
 
 char *proc_get_cmdline(pid_t pid) {
-  // had to do it this way because /proc/X/cmdline stores arguments with
-  // a null as a separator instead of spaces or whatever. can probably
-  // do something better
   int             fd;
-  char            cmdline_path[PATH_MAX];
+  char            cmdline_path[PATH_MAX] = {0};
   static char     buf[ARG_MAX];
   int             bytes;
 
-  memset(cmdline_path, 0x00, sizeof(cmdline_path));
   snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%d/cmdline", pid);
 
+  /* read *argv[] from cmdline_path */
   fd = open(cmdline_path, O_RDONLY);
   if (fd == -1)
     return "";
   bytes = read(fd, buf, sizeof(buf));
   close(fd);
 
+  /* *argv[] is null delimited, replace nulls with spaces */
   for (int i = 0; i < bytes - 1; i++)
     if (buf[i] == 0x00)
       buf[i] = ' ';
