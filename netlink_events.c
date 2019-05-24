@@ -26,40 +26,38 @@ extern char hostname[HOST_NAME_MAX];
  * Returns:
  *     char * containing serialized JSON object describing this event.
  *
- * TODO
- * - Deal with parent_pid and child_pid being the same somehow (see below)
+ * TODO: Deal with parent_pid and child_pid being the same somehow (see below)
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
-  char                *exepath =				\
-    proc_get_exe_path(event->event_data.fork.parent_pid);
+  pid_t               parent_pid     = event->event_data.fork.parent_pid;
+  char                *exepath       = proc_get_exe_path(parent_pid);
   bool                deleted;
   char                *md5;
   struct proc_status  status;
-  json_object         *jobj = json_object_new_object();
-  json_object         *j_timestamp = json_object_new_double(timestamp());
-  json_object         *j_hostname = json_object_new_string(hostname);
-  json_object         *j_exepath = json_object_new_string(exepath);
-  json_object         *j_deleted;
-  json_object         *j_name = json_object_new_string(status.name);
-  json_object         *j_uid = json_object_new_int(status.uid);
-  json_object         *j_euid = json_object_new_int(status.euid);
-  json_object         *j_gid = json_object_new_int(status.gid);
-  json_object         *j_egid = json_object_new_int(status.egid);
+  json_object         *jobj          = json_object_new_object();
   json_object         *j_md5;
-  json_object         *j_parent_pid = \
-    json_object_new_int(event->event_data.fork.parent_pid);
+  json_object         *j_deleted;
+  json_object         *j_timestamp   = json_object_new_double(timestamp());
+  json_object         *j_hostname    = json_object_new_string(hostname);
+  json_object         *j_exepath     = json_object_new_string(exepath);
+  json_object         *j_name        = json_object_new_string(status.name);
+  json_object         *j_uid         = json_object_new_int(status.uid);
+  json_object         *j_euid        = json_object_new_int(status.euid);
+  json_object         *j_gid         = json_object_new_int(status.gid);
+  json_object         *j_egid        = json_object_new_int(status.egid);
+  json_object         *j_parent_pid  = json_object_new_int(parent_pid);
   json_object         *j_parent_tgid = \
     json_object_new_int(event->event_data.fork.parent_tgid);
-  json_object         *j_child_pid = \
+  json_object         *j_child_pid   = \
     json_object_new_int(event->event_data.fork.child_pid);
-  json_object         *j_child_tgid = \
+  json_object         *j_child_tgid  = \
     json_object_new_int(event->event_data.fork.child_tgid);
   json_object         *j_cmdline;
-  json_object         *j_event_type = json_object_new_string("fork");
+  json_object         *j_event_type  = json_object_new_string("fork");
 
   /* Do this before anything to have better chances of catching the hash */
-  md5 = md5_digest_file(proc_exe_path(event->event_data.fork.parent_pid));
-  j_md5         = json_object_new_string(md5);
+  md5 = md5_digest_file(proc_exe_path(parent_pid));
+  j_md5 = json_object_new_string(md5);
 
   /* If files are running, but have been deleted on disk, the
    * symbolic link in /proc/PID/exe has (deleted) appended to
@@ -81,14 +79,13 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
    * 33d8c8e092458e35ed45a709aa64a99b  /usr/bin/yes
    */
   deleted = endswith(exepath, "(deleted)");
-  j_deleted     = json_object_new_boolean(deleted);
+  j_deleted = json_object_new_boolean(deleted);
 
   /* Do this after hashing md5, so we have a better chance of catching
    * the process before it is closed.
    */
-  status = proc_get_status(event->event_data.fork.parent_pid);
-  j_cmdline = \
-    json_object_new_string(proc_get_cmdline(event->event_data.fork.parent_pid));
+  status = proc_get_status(parent_pid);
+  j_cmdline = json_object_new_string(proc_get_cmdline(parent_pid));
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -127,8 +124,8 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   pid_t                 pid = event->event_data.exec.process_pid;
+  char                  *exefile = proc_get_exe_path(pid);
   struct proc_status    procstatus;
-  char                  *exefile;
   json_object           *jobj = json_object_new_object();
   json_object           *j_timestamp = json_object_new_double(timestamp());
   json_object           *j_hostname = json_object_new_string(hostname);
@@ -143,7 +140,6 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object           *j_gid, *j_egid;
   json_object           *j_event_type = json_object_new_string("exec");
 
-  exefile        = proc_get_exe_path(pid);
   j_md5          = json_object_new_string(md5_digest_file(exefile));
   j_exepath      = json_object_new_string(exefile);
   j_cmdline      = json_object_new_string(proc_get_cmdline(pid));
@@ -171,19 +167,54 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   return (char *)json_object_to_json_string(jobj);
 }
 
+/* handle_PROC_EVENT_EXEC_environment() - Grab the environment from
+ * PROC_EVENT_EXEC events.
+ *
+ * This is called after handle_PROC_EVENT_EXEC() to attempt to grab
+ * the environment from /proc/X/environ for a newly-executed
+ * process. This information may be useful from a forensics
+ * standpoint, and possibly to detect malicious activity.
+ *
+ * Since an environment can contain anything, it is base64 encoded so
+ * it doesn't break our JSON formatting.
+ *
+ * Args:
+ *     event - proc_event structure (linux/cn_proc.h)
+ *
+ * Returns:
+ *     char * containing serialized JSON object describing this event.
+ */
 char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
-  json_object *jobj = json_object_new_object();
-  json_object *j_timestamp = json_object_new_double(timestamp());
-  json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_pid = json_object_new_int(event->event_data.exec.process_pid);
-  json_object *j_event_type = json_object_new_string("environment");
-  json_object *j_environment = \
-    json_object_new_string(proc_environ(event->event_data.exec.process_pid));
+  // TODO what happens when you pass a very large environment?
+  pid_t                 pid = event->event_data.exec.process_pid;
+  char                  *exefile = proc_get_exe_path(pid);
+  struct proc_status    procstatus;
+  json_object           *jobj = json_object_new_object();
+  json_object           *j_timestamp   = json_object_new_double(timestamp());
+  json_object           *j_hostname    = json_object_new_string(hostname);
+  json_object           *j_exepath     = json_object_new_string(exefile);
+  json_object           *j_pid         = json_object_new_int(pid);
+  json_object           *j_uid, *j_euid;
+  json_object           *j_gid, *j_egid;
+  json_object           *j_event_type  = json_object_new_string("environment");
+  json_object           *j_environment = \
+    json_object_new_string(proc_environ(pid));
+
+  procstatus = proc_get_status(pid);
+  j_uid = json_object_new_int(procstatus.uid);
+  j_euid = json_object_new_int(procstatus.euid);
+  j_gid = json_object_new_int(procstatus.gid);
+  j_egid = json_object_new_int(procstatus.egid);
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
   json_object_object_add(jobj, "event_type", j_event_type);
   json_object_object_add(jobj, "pid", j_pid);
+  json_object_object_add(jobj, "uid", j_uid);
+  json_object_object_add(jobj, "euid", j_euid);
+  json_object_object_add(jobj, "gid", j_gid);
+  json_object_object_add(jobj, "egid", j_egid);
+  json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "environment", j_environment);
 
   return (char *)json_object_to_json_string(jobj);
@@ -321,7 +352,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object *jobj = json_object_new_object();
   char        *targetpath    = \
     proc_get_exe_path(event->event_data.ptrace.process_pid);
-  char        *tracerpath    =					\
+  char        *tracerpath    = \
     proc_get_exe_path(event->event_data.ptrace.tracer_pid);
 
   json_object *j_timestamp   = json_object_new_double(timestamp());
