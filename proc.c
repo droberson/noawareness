@@ -16,7 +16,7 @@
 #include "string_common.h"
 
 #undef SHOW_READLINK_ERRORS
-
+#undef SHOW_GET_PROC_STATUS_ERRORS
 
 
 char *proc_cwd(pid_t pid) {
@@ -30,7 +30,7 @@ char *proc_cwd(pid_t pid) {
 #ifdef SHOW_READLINK_ERRORS
     error("readlink %s: %s\n", cwd_path, strerror(errno));
 #endif /* SHOW_READLINK_ERRORS */
-    return "";
+   return "";
   }
 
   return cwd;
@@ -169,7 +169,9 @@ struct proc_status proc_get_status(pid_t pid) {
 
   fp = fopen(proc_status, "r");
   if (fp == NULL) {
+#ifdef SHOW_GET_PROC_STATUS_ERRORS
     error("error opening %s: %s\n", proc_status, strerror(errno));
+#endif
     memset(result.name, 0x00, sizeof(result.name));
     return result;
   }
