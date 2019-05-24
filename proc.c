@@ -28,7 +28,7 @@ char *proc_cwd(pid_t pid) {
 
   if (readlink(cwd_path, cwd, sizeof(cwd)) == -1) {
 #ifdef SHOW_READLINK_ERRORS
-    error("readlink %s: %s\n", cwd_path, strerror(errno));
+    error("readlink %s: %s", cwd_path, strerror(errno));
 #endif /* SHOW_READLINK_ERRORS */
    return "";
   }
@@ -69,7 +69,7 @@ char *proc_get_exe_path(pid_t pid) {
 
   if (readlink(exe_path, real_path, sizeof(real_path)) == -1) {
 #ifdef SHOW_READLINK_ERRORS
-    error("readlink %s: %s\n", exe_path, strerror(errno));
+    error("readlink %s: %s", exe_path, strerror(errno));
 #endif /* SHOW_READLINK_ERRORS */
     return "";
   }
@@ -168,7 +168,7 @@ struct proc_status proc_get_status(pid_t pid) {
   fp = fopen(proc_status, "r");
   if (fp == NULL) {
 #ifdef SHOW_GET_PROC_STATUS_ERRORS
-    error("error opening %s: %s\n", proc_status, strerror(errno));
+    error("error opening %s: %s", proc_status, strerror(errno));
 #endif
     memset(result.name, 0x00, sizeof(result.name));
     return result;

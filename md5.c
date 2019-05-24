@@ -142,7 +142,7 @@ char *md5_digest_file(const char *path) {
   fp = fopen(path, "rb");
   if (fp == NULL) {
 #ifdef MD5_SHOW_ERRORS
-    error("md5_digest_file: unable to open %s for reading: %s\n",
+    error("md5_digest_file: unable to open %s for reading: %s",
 	    path,
 	    strerror(errno));
 #endif /* MD5_SHOW_ERRORS */
