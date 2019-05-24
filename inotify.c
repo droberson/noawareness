@@ -19,6 +19,9 @@
 #include "time_common.h"
 
 
+/*
+ * Globals
+ */
 inotify_t               *head = NULL;
 extern char             hostname[HOST_NAME_MAX];
 extern sock_t           sock;
@@ -26,6 +29,7 @@ extern bool             daemonize;
 extern bool             remote_logging;
 extern bool             quiet;
 extern unsigned long    maxsize;
+
 
 void inotify_add(int wd, const char *filename) {
   inotify_t	*link = (inotify_t *)malloc(sizeof(inotify_t));
