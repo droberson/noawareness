@@ -124,36 +124,45 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  *
  * Returns:
  *     char * containing serialized JSON object describing this event.
- *
- * TODO:
- * - uid and gid of process owner
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
-  char        *exefile;
-  json_object *jobj = json_object_new_object();
-  json_object *j_timestamp = json_object_new_double(timestamp());
-  json_object *j_hostname = json_object_new_string(hostname);
-  json_object *j_exepath;
-  json_object *j_process_pid = \
-    json_object_new_int(event->event_data.exec.process_pid);
-  json_object *j_process_tgid = \
+  pid_t                 pid = event->event_data.exec.process_pid;
+  struct proc_status    procstatus;
+  char                  *exefile;
+  json_object           *jobj = json_object_new_object();
+  json_object           *j_timestamp = json_object_new_double(timestamp());
+  json_object           *j_hostname = json_object_new_string(hostname);
+  json_object           *j_exepath;
+  json_object           *j_process_pid = json_object_new_int(pid);
+  json_object           *j_process_tgid = \
     json_object_new_int(event->event_data.exec.process_tgid);
-  json_object *j_md5;
-  json_object *j_cmdline;
-  json_object *j_cwd;
-  json_object *j_event_type = json_object_new_string("exec");
+  json_object           *j_md5;
+  json_object           *j_cmdline;
+  json_object           *j_cwd;
+  json_object           *j_uid, *j_euid;
+  json_object           *j_gid, *j_egid;
+  json_object           *j_event_type = json_object_new_string("exec");
 
-  exefile        = proc_get_exe_path(event->event_data.exec.process_pid);
+  exefile        = proc_get_exe_path(pid);
   j_md5          = json_object_new_string(md5_digest_file(exefile));
   j_exepath      = json_object_new_string(exefile);
-  j_cmdline      = json_object_new_string(proc_get_cmdline(event->event_data.exec.process_pid));
-  j_cwd          = json_object_new_string(proc_cwd(event->event_data.exec.process_pid));
+  j_cmdline      = json_object_new_string(proc_get_cmdline(pid));
+  j_cwd          = json_object_new_string(proc_cwd(pid));
+  procstatus     = proc_get_status(pid);
+  j_uid          = json_object_new_int(procstatus.uid);
+  j_euid         = json_object_new_int(procstatus.euid);
+  j_gid          = json_object_new_int(procstatus.gid);
+  j_egid         = json_object_new_int(procstatus.egid);
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
   json_object_object_add(jobj, "event_type", j_event_type);
   json_object_object_add(jobj, "pid", j_process_pid);
   json_object_object_add(jobj, "tgid", j_process_tgid);
+  json_object_object_add(jobj, "uid", j_uid);
+  json_object_object_add(jobj, "euid", j_euid);
+  json_object_object_add(jobj, "gid", j_gid);
+  json_object_object_add(jobj, "egid", j_egid);
   json_object_object_add(jobj, "md5", j_md5);
   json_object_object_add(jobj, "exename", j_exepath);
   json_object_object_add(jobj, "cmdline", j_cmdline);
