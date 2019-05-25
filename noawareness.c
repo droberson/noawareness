@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
 #include <limits.h>
@@ -76,12 +77,19 @@ void output(const char *msg) {
     fprintf(outfilep, "%s\n", msg);
 }
 
-void msg(const char *msg) {
+void msg(const char *fmt, ...) {
+  char buf[8192] = {0};
+  va_list vl;
+
+  va_start(vl, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, vl);
+  va_end(vl);
+
   if (use_syslog)
-    syslog(LOG_INFO | LOG_USER, "%s", msg);
+    syslog(LOG_INFO | LOG_USER, "%s", buf);
 
   if (!daemonize)
-    printf("%s\n", msg);
+    printf("%s\n", buf);
 }
 
 static void handle_netlink_message(struct cn_msg *cn_message) {
