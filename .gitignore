@@ -2,3 +2,4 @@ noawareness
 test_*
 *.o
 *.swp
+core
