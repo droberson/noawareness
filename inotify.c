@@ -25,6 +25,7 @@
 inotify_t               *head = NULL;
 extern char             hostname[HOST_NAME_MAX];
 extern sock_t           sock;
+extern int              inotify;
 extern bool             daemonize;
 extern bool             remote_logging;
 extern bool             quiet;
@@ -49,6 +50,7 @@ void inotify_remove(int wd) {
 
   if (search->wd == wd) {
     head = search->next;
+    inotify_rm_watch(inotify, search->wd);
     free(search);
     return;
   }
@@ -58,6 +60,7 @@ void inotify_remove(int wd) {
       match = search->next;
 
       search->next = search->next->next;
+      inotify_rm_watch(inotify, match->wd);
       free(match);
 
       break;
@@ -80,6 +83,19 @@ void inotify_add_files(int fd, const char *path) {
   if (path == NULL) {
     error("no inotify config provided!");
     return;
+  }
+
+  if (head != NULL) {
+    /* We are already watching files. Close them all so they can be
+       re-opened. This probably happened because of a SIGHUP. */
+    inotify_t *cur;
+
+    do {
+      cur = head;
+      head = head->next;
+      inotify_rm_watch(inotify, cur->wd);
+      free(cur);
+    } while(head);
   }
 
   fp = fopen(path, "r");
@@ -121,8 +137,13 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   //struct group  *g;
   char          *md5;
 
-  while (current->wd != e->wd)
+
+  while (current->wd != e->wd) {
+    if (!current->next) // possibly reloading config, bail out.
+      return;
+
     current = current->next;
+  }
 
   if (e->mask & IN_ACCESS)          mask = "IN_ACCESS";
   if (e->mask & IN_ATTRIB)        { mask = "IN_ATTRIB"; get_perm = true; }

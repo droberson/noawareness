@@ -28,8 +28,6 @@
 #include "inotify_common.h"
 
 // TODO ipv6
-// TODO SIGHUP
-  // reload inotify.conf
 // TODO map uids and gids to real names
   // implement getgrgid and getpwuid myself because cant link these static
 // TODO permissions, attributes, owner, groupships of files
@@ -45,6 +43,7 @@
  * Globals
  */
 sock_t          sock;
+int             inotify;
 bool            daemonize       = false;
 bool            quiet           = false;
 bool            use_syslog      = true;
@@ -211,7 +210,7 @@ static void select_inotify(int inotify) {
   }
 }
 
-static FILE *open_log_file(const char *outfile) {
+FILE *open_log_file(const char *outfile) {
   FILE *fp;
 
   fp = fopen(outfile, "a+");
@@ -240,6 +239,9 @@ static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
     fclose(outfilep);
     outfilep = open_log_file(outfile);
   }
+
+  msg("Reloading inotify config");
+  inotify_add_files(inotify, inotifyconfig);
 }
 
 static void usage(const char *progname) {
@@ -275,7 +277,6 @@ int main(int argc, char *argv[]) {
   int                     err;
   pid_t                   pid;
   sock_t                  netlink;
-  int                     inotify;
   struct sockaddr_nl      nl_userland, nl_kernel;
   struct nlmsghdr         *nl_header;
   struct cn_msg           *cn_message;
