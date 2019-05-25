@@ -231,7 +231,6 @@ static void install_sighup_handler() {
 }
 
 static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
-  // TODO inotify config reload
   msg("Caught SIGHUP.");
 
   if (log_to_file) {
