@@ -474,7 +474,7 @@ int main(int argc, char *argv[]) {
   /* Shouldn't ever get here */
   close(netlink);
   close(sock);
-	    closelog();
+  closelog();
 
   return EXIT_SUCCESS;
 }

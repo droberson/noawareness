@@ -250,4 +250,6 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
       printf("%s\n", msg);
   if (remote_logging)
     sockprintf(sock, "%s\r\n", msg);
+
+  json_object_put(jobj);
 }

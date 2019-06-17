@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdbool.h>
 #include <limits.h>
 
@@ -29,6 +30,7 @@ extern char hostname[HOST_NAME_MAX];
  * TODO: Deal with parent_pid and child_pid being the same somehow (see below)
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
+  static char         message[65535];
   pid_t               parent_pid     = event->event_data.fork.parent_pid;
   char                *exepath       = proc_get_exe_path(parent_pid);
   bool                deleted;
@@ -108,7 +110,11 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object_object_add(jobj, "child_pid", j_child_pid);
   json_object_object_add(jobj, "child_tgid", j_child_tgid);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
   // Parent and child are same data when this event is caught.
   //printf("%s %s\n", proc_get_exe_path(event->event_data.fork.parent_pid),
   //	       proc_get_cmdline(event->event_data.fork.child_pid));
@@ -127,6 +133,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
+  static char           message[65535];
   pid_t                 pid = event->event_data.exec.process_pid;
   char                  *exefile = proc_get_exe_path(pid);
   struct proc_status    procstatus;
@@ -169,7 +176,11 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object_object_add(jobj, "cmdline", j_cmdline);
   json_object_object_add(jobj, "cwd", j_cwd);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 /* handle_PROC_EVENT_EXEC_environment() - Grab the environment from
@@ -191,6 +202,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   // TODO what happens when you pass a very large environment?
+  static char           message[65535];
   pid_t                 pid            = event->event_data.exec.process_pid;
   char                  *exefile       = proc_get_exe_path(pid);
   struct proc_status    procstatus;
@@ -222,7 +234,11 @@ char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "environment", j_environment);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 /* handle_PROC_EVENT_EXIT() - Handle PROC_EVENT_EXIT events.
@@ -240,6 +256,7 @@ char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
  *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
+  static char message[65535];
   json_object *jobj         = json_object_new_object();
   json_object *j_timestamp  = json_object_new_double(timestamp());
   json_object *j_hostname   = json_object_new_string(hostname);
@@ -261,7 +278,11 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
   json_object_object_add(jobj, "exit_code", j_exitcode);
   json_object_object_add(jobj, "signal", j_signal);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 /* handle_PROC_EVENT_UID() - Handle PROC_EVENT_UID events.
@@ -284,6 +305,7 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
  *     are nearly identical.
  */
 char *handle_PROC_EVENT_UID(struct proc_event *event) {
+  static char message[65535];
   pid_t       pid           = event->event_data.id.process_pid;
   char        *exefile      = proc_get_exe_path(pid);
   json_object *jobj         = json_object_new_object();
@@ -306,10 +328,15 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
   json_object_object_add(jobj, "ruid", j_ruid);
   json_object_object_add(jobj, "euid", j_euid);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 char *handle_PROC_EVENT_GID(struct proc_event *event) {
+  static char message[65535];
   pid_t       pid           = event->event_data.id.process_pid;
   char        *exefile      = proc_get_exe_path(pid);
   json_object *jobj         = json_object_new_object();
@@ -332,7 +359,11 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
   json_object_object_add(jobj, "rgid", j_rgid);
   json_object_object_add(jobj, "egid", j_egid);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 /* handle_PROC_EVENT_PTRACE() - Handle PROC_EVENT_PTRACE events.
@@ -354,6 +385,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  *     path, hash, etc of the tracer process may fail sometimes.
  */
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
+  static char message[65535];
   json_object *jobj = json_object_new_object();
   char        *targetpath    = \
     proc_get_exe_path(event->event_data.ptrace.process_pid);
@@ -384,7 +416,11 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object_object_add(jobj, "tracer_path", j_tracer_path);
   json_object_object_add(jobj, "target_path", j_target_path);
 
-  return (char *)json_object_to_json_string(jobj);
+  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+
+  json_object_put(jobj);
+
+  return message;
 }
 
 /* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
