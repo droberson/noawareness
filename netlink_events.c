@@ -384,6 +384,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  *     This appears to be called AFTER ptrace() calls, so obtaining the
  *     path, hash, etc of the tracer process may fail sometimes.
  */
+#ifdef PROC_EVENT_PTRACE
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   static char message[65535];
   json_object *jobj = json_object_new_object();
@@ -422,6 +423,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
 
   return message;
 }
+#endif
 
 /* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
  *
