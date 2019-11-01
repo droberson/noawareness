@@ -78,6 +78,7 @@ char *proc_get_exe_path(pid_t pid) {
 }
 
 char *proc_get_cmdline(pid_t pid) {
+  int             i;
   int             fd;
   char            cmdline_path[PATH_MAX] = {0};
   static char     buf[ARG_MAX];
@@ -93,7 +94,7 @@ char *proc_get_cmdline(pid_t pid) {
   close(fd);
 
   /* *argv[] is null delimited, replace nulls with spaces */
-  for (int i = 0; i < bytes - 1; i++)
+  for (i = 0; i < bytes - 1; i++)
     if (buf[i] == 0x00)
       buf[i] = ' ';
 
