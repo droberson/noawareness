@@ -3,7 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <openssl/md5.h>
+#include "md5/global.h"
+#include "md5/md5.h"
 
 #include "md5.h"
 #include "error.h"
@@ -149,10 +150,10 @@ char *md5_digest_file(const char *path) {
     return "";
   }
 
-  MD5_Init(&context);
+  MD5Init(&context);
   while ((bytes = fread(data, 1, sizeof(data), fp)) != 0)
-    MD5_Update(&context, data, bytes);
-  MD5_Final(c, &context);
+    MD5Update(&context, data, bytes);
+  MD5Final(c, &context);
 
   fclose(fp);
 
