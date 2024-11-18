@@ -1,5 +1,5 @@
-noawareness
-test_*
 *.o
 *.swp
 core
+build/*
+bin/*

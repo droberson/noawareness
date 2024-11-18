@@ -158,6 +158,7 @@ static void handle_netlink_message(struct cn_msg *cn_message) {
 	/* If we have data to output, deal with it. */
 	if (msg != NULL) {
 		output(msg);
+		free(msg);
 	}
 }
 

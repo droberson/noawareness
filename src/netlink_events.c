@@ -30,30 +30,29 @@ extern char hostname[HOST_NAME_MAX];
  * TODO: Deal with parent_pid and child_pid being the same somehow (see below)
  */
 char *handle_PROC_EVENT_FORK(struct proc_event *event) {
-  static char         message[65535];
-  pid_t               parent_pid     = event->event_data.fork.parent_pid;
-  char                *exepath       = proc_get_exe_path(parent_pid);
-  bool                deleted;
+  pid_t                parent_pid     = event->event_data.fork.parent_pid;
+  char                *exepath        = proc_get_exe_path(parent_pid);
+  bool                 deleted;
   char                *md5;
-  struct proc_status  status;
-  json_object         *jobj          = json_object_new_object();
+  struct proc_status   status;
+  json_object         *jobj           = json_object_new_object();
   json_object         *j_md5;
   json_object         *j_deleted;
-  json_object         *j_timestamp   = json_object_new_double(timestamp());
-  json_object         *j_hostname    = json_object_new_string(hostname);
-  json_object         *j_exepath     = json_object_new_string(exepath);
+  json_object         *j_timestamp    = json_object_new_double(timestamp());
+  json_object         *j_hostname     = json_object_new_string(hostname);
+  json_object         *j_exepath      = json_object_new_string(exepath);
   json_object         *j_name;
   json_object         *j_uid, *j_euid;
   json_object         *j_gid, *j_egid;
-  json_object         *j_parent_pid  = json_object_new_int(parent_pid);
-  json_object         *j_parent_tgid = \
+  json_object         *j_parent_pid   = json_object_new_int(parent_pid);
+  json_object         *j_parent_tgid  = \
     json_object_new_int(event->event_data.fork.parent_tgid);
-  json_object         *j_child_pid   = \
+  json_object         *j_child_pid    = \
     json_object_new_int(event->event_data.fork.child_pid);
-  json_object         *j_child_tgid  = \
+  json_object         *j_child_tgid   = \
     json_object_new_int(event->event_data.fork.child_tgid);
   json_object         *j_cmdline;
-  json_object         *j_event_type  = json_object_new_string("fork");
+  json_object         *j_event_type   = json_object_new_string("fork");
 
   /* Do this before anything to have better chances of catching the hash */
   md5 = md5_digest_file(proc_exe_path(parent_pid));
@@ -78,7 +77,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
    * % md5sum /usr/bin/yes
    * 33d8c8e092458e35ed45a709aa64a99b  /usr/bin/yes
    */
-  deleted = endswith(exepath, "(deleted)");
+  deleted = endswith(exepath, " (deleted)");
   j_deleted = json_object_new_boolean(deleted);
 
   /* Do this after hashing md5, so we have a better chance of catching
@@ -110,8 +109,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object_object_add(jobj, "child_pid", j_child_pid);
   json_object_object_add(jobj, "child_tgid", j_child_tgid);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -133,7 +131,6 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
  *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
-  static char           message[65535];
   pid_t                 pid = event->event_data.exec.process_pid;
   char                  *exefile = proc_get_exe_path(pid);
   struct proc_status    procstatus;
@@ -176,8 +173,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object_object_add(jobj, "cmdline", j_cmdline);
   json_object_object_add(jobj, "cwd", j_cwd);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -202,7 +198,6 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
  */
 char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   // TODO what happens when you pass a very large environment?
-  static char           message[65535];
   pid_t                 pid            = event->event_data.exec.process_pid;
   char                  *exefile       = proc_get_exe_path(pid);
   struct proc_status    procstatus;
@@ -234,8 +229,7 @@ char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "environment", j_environment);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -256,7 +250,6 @@ char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
  *     char * containing serialized JSON object describing this event.
  */
 char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
-  static char message[65535];
   json_object *jobj         = json_object_new_object();
   json_object *j_timestamp  = json_object_new_double(timestamp());
   json_object *j_hostname   = json_object_new_string(hostname);
@@ -278,8 +271,7 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
   json_object_object_add(jobj, "exit_code", j_exitcode);
   json_object_object_add(jobj, "signal", j_signal);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -305,7 +297,6 @@ char *handle_PROC_EVENT_EXIT(struct proc_event *event) {
  *     are nearly identical.
  */
 char *handle_PROC_EVENT_UID(struct proc_event *event) {
-  static char message[65535];
   pid_t       pid           = event->event_data.id.process_pid;
   char        *exefile      = proc_get_exe_path(pid);
   json_object *jobj         = json_object_new_object();
@@ -328,15 +319,15 @@ char *handle_PROC_EVENT_UID(struct proc_event *event) {
   json_object_object_add(jobj, "ruid", j_ruid);
   json_object_object_add(jobj, "euid", j_euid);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  //strncpy(message, json_object_to_json_string(jobj), sizeof(message));
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
 }
 
 char *handle_PROC_EVENT_GID(struct proc_event *event) {
-  static char message[65535];
+	//static char message[65535];
   pid_t       pid           = event->event_data.id.process_pid;
   char        *exefile      = proc_get_exe_path(pid);
   json_object *jobj         = json_object_new_object();
@@ -359,8 +350,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
   json_object_object_add(jobj, "rgid", j_rgid);
   json_object_object_add(jobj, "egid", j_egid);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -386,7 +376,6 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  */
 #ifdef PROC_EVENT_PTRACE
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
-  static char message[65535];
   json_object *jobj = json_object_new_object();
   char        *targetpath    = \
     proc_get_exe_path(event->event_data.ptrace.process_pid);
@@ -417,8 +406,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object_object_add(jobj, "tracer_path", j_tracer_path);
   json_object_object_add(jobj, "target_path", j_target_path);
 
-  strncpy(message, json_object_to_json_string(jobj), sizeof(message));
-
+  char *message = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   json_object_put(jobj);
 
   return message;
@@ -440,6 +428,9 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
  * Note:
  *     This is triggered when setsid() happens. I am not sure of the
  *     forensic implications of this event, so it currently does nothing.
+ *
+ *     This can be used to detect when processes daemonize/fork/detach
+ *     from a terminal.
  */
 void handle_PROC_EVENT_SID(struct proc_event *event) {
   return;
@@ -462,6 +453,13 @@ void handle_PROC_EVENT_SID(struct proc_event *event) {
  *     I am not sure what exactly triggers this right now, or the forensic
  *     implications of these events. Despite this, there seem to be quite
  *     a few of these events.
+ *
+ *     This may be triggered for prctl(PR_SET_NAME, ...) and be
+ *     suitable for finding processes attempting to obfuscate
+ *     themselves (ex: malware changing its name to 'sshd')
+ *
+ *     Apparently this can be triggered by threads setting their names
+ *     as well.
  */
 void handle_PROC_EVENT_COMM(struct proc_event *event) {
   return;

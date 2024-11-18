@@ -1,29 +1,29 @@
-CC=gcc
-CFLAGS=-g -Wall
-OFILES=noawareness.o md5.o string.o proc.o net.o time.o netlink_events.o \
-       inotify.o error.o
-LFLAGS=
-#LFLAGS=-static
-LIBS=-ljson-c
+CC = gcc
+CFLAGS = -g -Wall -Iinclude
+LFLAGS =
+LIBS = -ljson-c
 
-MD5_OBJ=md5/md5c.o
+SRC_DIR = src
+BUILD_DIR = build
+MD5_DIR = src/md5
 
-all:	$(MD5_OBJ) noawareness
+SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+OFILES = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
+MD5_OBJ = $(MD5_DIR)/md5c.o
 
-%.o:%.c *.h
-	$(CC) -c $(CFLAGS) $<
+all: noawareness
 
-md5obj: md5/md5c.c
-	@( cd md5; make )
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-noawareness: $(OFILES) md5obj
-	$(CC) $(CFLAGS) $(MD5_OBJ) $(LFLAGS) $(OFILES) -o $@ $(LIBS)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c include/*.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(MD5_OBJ): $(MD5_DIR)/md5c.c $(MD5_DIR)/md5.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+noawareness: $(OFILES) $(MD5_OBJ)
+	$(CC) $(CFLAGS) $(LFLAGS) $(OFILES) $(MD5_OBJ) -o $@ $(LIBS)
 
 clean:
-	rm -rf *.o *~ *.core test_* noawareness
-	@( cd md5; make clean )
-
-tests:
-	gcc -c test-endswith.c
-	gcc -o test_endswith string.o test-endswith.c
-	./test_endswith
+	rm -rf $(BUILD_DIR)/*.o $(MD5_OBJ) noawareness *~
