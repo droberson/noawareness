@@ -60,11 +60,6 @@ unsigned long   maxsize         = 50000000; // 50mb
 char            hostname[HOST_NAME_MAX];
 static volatile sig_atomic_t reload_config = false;
 
-/*
- * Prototypes
- */
-static void handle_sighup(int, siginfo_t *, void *);
-
 
 void output(const char *msg) {
 	if (!daemonize) {
@@ -492,6 +487,22 @@ int main(int argc, char *argv[]) {
 	  }
 
 	  freeaddrinfo(res);
+
+	  char addr_s[INET6_ADDRSTRLEN];
+	  void *addr_ptr = NULL;
+
+	  if (rp->ai_family == AF_INET) {
+		  struct sockaddr_in *ipv4 = (struct sockaddr_in *)rp->ai_addr;
+		  addr_ptr = &(ipv4->sin_addr);
+	  } else if (rp->ai_family == AF_INET6) {
+		  struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)rp->ai_addr;
+		  addr_ptr = &(ipv6->sin6_addr);
+	  }
+
+	  if (addr_ptr &&
+		  inet_ntop(rp->ai_family, addr_ptr, addr_s, sizeof(addr_s))) {
+		  msg("Connected to logserver: %s:%d", addr_s, log_server_port);
+	  }
   }
 
   /* Daemonize the process if desired. */
