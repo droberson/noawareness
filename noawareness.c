@@ -447,47 +447,50 @@ int main(int argc, char *argv[]) {
 
   /* Set up select loop and get some. */
   int setsize = netlink > inotify ? netlink + 1 : inotify + 1;
+
   for(;;) {
     FD_ZERO(&fdset);
     FD_SET(netlink, &fdset);
     FD_SET(inotify, &fdset);
 
-    if (select(setsize, &fdset, NULL, NULL, NULL) < 0) {
+	struct timeval select_timeout;
+	select_timeout.tv_sec = 1;
+	select_timeout.tv_usec = 0;
+
+    int activity = select(setsize, &fdset, NULL, NULL, &select_timeout);
+	if (activity < 0) {
 		if (errno != EINTR) {
 			error_fatal("select(): %s", strerror(errno));
 		}
 	}
 
-    for(int i = 0; i < FD_SETSIZE; i++) {
-      if (FD_ISSET(i, &fdset)) {
-		  if (i == inotify) {
-			  select_inotify(inotify);
-		  }
+	if (activity == 0) {
+		//printf("no activity...\n");
+		continue;
+	}
 
-		  else if (i == netlink) {
-			  select_netlink(netlink, nl_kernel, cn_message);
-		  }
+	if (FD_ISSET(inotify, &fdset)) {
+		select_inotify(inotify);
+	}
 
-		  else {
-			  error("select(): unhandled fd: %d", i);
-		  }
-      }
+	if (FD_ISSET(netlink, &fdset)) {
+		select_netlink(netlink, nl_kernel, cn_message);
+	}
 
-	  if (reload_config) {
-		  reload_config = false;
-		  msg("Caught SIGHUP.");
+	if (reload_config) {
+		reload_config = false;
+		msg("Caught SIGHUP.");
 
-		  if (log_to_file) {
+		if (log_to_file) {
 			  msg("Reloading JSON log file");
 			  fclose(outfilep);
 			  outfilep = open_log_file(outfile);
 		  }
 
-		  msg("Reloading inotify config");
-		  inotify_add_files(inotify, inotifyconfig);
-	  }
-    }
-  } /* for(;;) */
+		msg("Reloading inotify config");
+		inotify_add_files(inotify, inotifyconfig);
+	}
+  }
 
   /* Shouldn't ever get here */
   close(netlink);
