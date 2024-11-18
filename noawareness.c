@@ -58,6 +58,7 @@ char            *log_server     = "127.0.0.1";
 port_t          log_server_port = 55555;
 unsigned long   maxsize         = 50000000; // 50mb
 char            hostname[HOST_NAME_MAX];
+static volatile sig_atomic_t reload_config = false;
 
 /*
  * Prototypes
@@ -234,27 +235,19 @@ FILE *open_log_file(const char *outfile) {
   return fp;
 }
 
+static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
+	reload_config = true;
+}
+
 static void install_sighup_handler() {
   struct sigaction act = {0};
 
-  act.sa_sigaction = &handle_sighup;
-  act.sa_flags = SA_SIGINFO;
+  act.sa_sigaction = handle_sighup;
+  act.sa_flags = 0;
 
-  if (sigaction(SIGHUP, &act, NULL) < 0)
+  if (sigaction(SIGHUP, &act, NULL) < 0) {
     error_fatal("sigaction(): %s", strerror(errno));
-}
-
-static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
-  msg("Caught SIGHUP.");
-
-  if (log_to_file) {
-    msg("Reloading JSON log file");
-    fclose(outfilep);
-    outfilep = open_log_file(outfile);
   }
-
-  msg("Reloading inotify config");
-  inotify_add_files(inotify, inotifyconfig);
 }
 
 static void usage(const char *progname) {
@@ -455,26 +448,44 @@ int main(int argc, char *argv[]) {
   /* Set up select loop and get some. */
   int setsize = netlink > inotify ? netlink + 1 : inotify + 1;
   for(;;) {
-    int i;
     FD_ZERO(&fdset);
     FD_SET(netlink, &fdset);
     FD_SET(inotify, &fdset);
 
-    if (select(setsize, &fdset, NULL, NULL, NULL) < 0)
-      if (errno != EINTR)
-	error_fatal("select(): %s", strerror(errno));
+    if (select(setsize, &fdset, NULL, NULL, NULL) < 0) {
+		if (errno != EINTR) {
+			error_fatal("select(): %s", strerror(errno));
+		}
+	}
 
-    for(i = 0; i < FD_SETSIZE; i++) {
+    for(int i = 0; i < FD_SETSIZE; i++) {
       if (FD_ISSET(i, &fdset)) {
-        if (i == inotify)
-          select_inotify(inotify);
+		  if (i == inotify) {
+			  select_inotify(inotify);
+		  }
 
-        else if (i == netlink)
-          select_netlink(netlink, nl_kernel, cn_message);
+		  else if (i == netlink) {
+			  select_netlink(netlink, nl_kernel, cn_message);
+		  }
 
-        else
-          error("select(): unhandled fd: %d", i);
+		  else {
+			  error("select(): unhandled fd: %d", i);
+		  }
       }
+
+	  if (reload_config) {
+		  reload_config = false;
+		  msg("Caught SIGHUP.");
+
+		  if (log_to_file) {
+			  msg("Reloading JSON log file");
+			  fclose(outfilep);
+			  outfilep = open_log_file(outfile);
+		  }
+
+		  msg("Reloading inotify config");
+		  inotify_add_files(inotify, inotifyconfig);
+	  }
     }
   } /* for(;;) */
 
