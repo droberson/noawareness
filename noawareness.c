@@ -43,21 +43,21 @@
 /*
  * Globals
  */
-sock_t          sock;
-int             inotify;
-bool            daemonize       = false;
-bool            quiet           = false;
-bool            use_syslog      = true;
-bool            log_to_file     = false;
-char            *outfile        = "/var/log/noawareness.json.log";
-FILE            *outfilep;
-char            *pidfile        = "/var/run/noawareness.pid";
-char            *inotifyconfig  = "inotify.conf";
-bool            remote_logging  = true;
-char            *log_server     = "127.0.0.1";
-port_t          log_server_port = 55555;
-unsigned long   maxsize         = 50000000; // 50mb
-char            hostname[HOST_NAME_MAX];
+sock_t                       sock;
+int                          inotify;
+bool                         daemonize       = false;
+bool                         quiet           = false;
+bool                         use_syslog      = true;
+bool                         log_to_file     = false;
+char                        *outfile        = "/var/log/noawareness.json.log";
+FILE                        *outfilep;
+char                        *pidfile        = "/var/run/noawareness.pid";
+char                        *inotifyconfig  = "inotify.conf";
+bool                         remote_logging  = true;
+char                        *log_server     = "127.0.0.1";
+port_t                       log_server_port = 55555;
+unsigned long                maxsize         = 50000000; // 50mb
+char                         hostname[HOST_NAME_MAX];
 static volatile sig_atomic_t reload_config = false;
 
 
@@ -176,10 +176,10 @@ void write_pid_file(const char *path, pid_t pid) {
 static void select_netlink(int netlink,
 						   struct sockaddr_nl nl_kernel,
 						   struct cn_msg *cn_message) {
-	int                 recv_length;
-	socklen_t           nl_kernel_len;
+	int                  recv_length;
+	socklen_t            nl_kernel_len;
 	struct nlmsghdr     *nlh;
-	char                buf[1024] = {0};
+	char                 buf[1024] = {0};
 
 	nl_kernel_len = sizeof(nl_kernel);
 
@@ -219,8 +219,8 @@ static void select_netlink(int netlink,
 
 static void select_inotify(int inotify) {
 	char                  *p;
-	int                   res;
-	char                  buf[INOTIFY_BUF_LEN];
+	int                    res;
+	char                   buf[INOTIFY_BUF_LEN];
 	struct inotify_event  *event;
 
 	res = read(inotify, buf, sizeof(buf));
@@ -290,16 +290,16 @@ static void usage(const char *progname) {
 }
 
 int main(int argc, char *argv[]) {
-  int                     opt;
-  int                     err;
-  pid_t                   pid;
-  sock_t                  netlink;
-  struct sockaddr_nl      nl_userland, nl_kernel;
+  int                      opt;
+  int                      err;
+  pid_t                    pid;
+  sock_t                   netlink;
+  struct sockaddr_nl       nl_userland, nl_kernel;
   struct nlmsghdr         *nl_header;
   struct cn_msg           *cn_message;
-  char                    buf[1024];
+  char                     buf[1024];
   enum proc_cn_mcast_op   *mcop_msg;
-  fd_set                  fdset;
+  fd_set                   fdset;
 
 
   /* Parse CLI options */

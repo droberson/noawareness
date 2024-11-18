@@ -23,13 +23,13 @@
  * Globals
  */
 inotify_t               *head = NULL;
-extern char             hostname[HOST_NAME_MAX];
-extern sock_t           sock;
-extern int              inotify;
-extern bool             daemonize;
-extern bool             remote_logging;
-extern bool             quiet;
-extern unsigned long    maxsize;
+extern char              hostname[HOST_NAME_MAX];
+extern sock_t            sock;
+extern int               inotify;
+extern bool              daemonize;
+extern bool              remote_logging;
+extern bool              quiet;
+extern unsigned long     maxsize;
 
 
 void inotify_add(int wd, const char *filename) {
@@ -71,9 +71,9 @@ void inotify_remove(int wd) {
 }
 
 void inotify_add_files(int fd, const char *path) {
-  int	wd;
+  int	 wd;
   FILE  *fp;
-  char  buf[INOTIFY_BUF_LEN];
+  char   buf[INOTIFY_BUF_LEN];
 
   // TODO add some sane defaults to this if no config file
   // - /etc
@@ -99,50 +99,54 @@ void inotify_add_files(int fd, const char *path) {
   }
 
   fp = fopen(path, "r");
-  if (fp == NULL)
+  if (fp == NULL) {
     error_fatal("Unable to open inotify config file %s: %s",
 	    path, strerror(errno));
+  }
 
   // TODO add whether to look for just writes, creation, etc in config file.
   while (fgets(buf, sizeof(buf), fp) != NULL) {
     buf[strcspn(buf, "\n")] = '\0';
-    if (strlen(buf) == 0)
+    if (strlen(buf) == 0) {
       continue;
+	}
 
     wd = inotify_add_watch(fd, buf, IN_ALL_EVENTS);
-    if (wd == -1)
+    if (wd == -1) {
       error("inotify_add_watch %s: %s", buf, strerror(errno));
-    else
+	} else {
       inotify_add(wd, buf);
+	}
   }
 
   fclose(fp);
 }
 
 void inotify_process_event(int inotify, struct inotify_event *e) {
-  int           wd;
-  int           found;
-  char          int2str[32];
+  int            wd;
+  int            found;
+  char           int2str[32];
   char          *mask;
-  char          path[PATH_MAX];
-  char          permstr[8];
+  char           path[PATH_MAX];
+  char           permstr[8];
   inotify_t     *current = head;
   inotify_t     *search;
-  bool          hash      = false,
-                get_perm  = false,
-                check_dir = false,
-                remove    = false;
-  struct stat   s;
+  bool           hash      = false,
+                 get_perm  = false,
+                 check_dir = false,
+                 remove    = false;
+  struct stat    s;
   //struct passwd *pwent;
   //struct group  *g;
   char          *md5;
 
 
   while (current->wd != e->wd) {
-    if (!current->next) // possibly reloading config, bail out.
-      return;
+	  if (!current->next) { // possibly reloading config, bail out.
+		  return;
+	  }
 
-    current = current->next;
+	  current = current->next;
   }
 
   if (e->mask & IN_ACCESS)          mask = "IN_ACCESS";
@@ -162,50 +166,54 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   if (e->mask & IN_Q_OVERFLOW)      mask = "IN_Q_OVERFLOW";
   if (e->mask & IN_UNMOUNT)         mask = "IN_UNMOUNT";
 
-  if (e->cookie > 0)
+  if (e->cookie > 0) {
     snprintf(int2str, sizeof(int2str), "%4d", e->cookie);
+  }
 
   snprintf(path, sizeof(path), "%s%s%s",
 	   current->filename,
 	   (e->len > 0) ? "/" : "",
 	   (e->len > 0) ? e->name : "");
 
-  if (remove)
+  if (remove) {
     inotify_remove(e->wd);
+  }
 
   if (check_dir) {
     search = head;
 
     for (found = 0; search->next; search = search->next) {
       if (strcmp(search->filename, path) == 0) {
-	found = search->wd;
-	break;
+		  found = search->wd;
+		  break;
       }
     }
 
     if (found == 0) {
       if (stat(path, &s) == 0) {
-	wd = inotify_add_watch(inotify, path, IN_ALL_EVENTS);
-	if (wd == -1) {
-	  error("inotify_add_watch %s: %s", path, strerror(errno));
-	} else {
-	  // TODO print new directory added
-	  inotify_add(wd, path);
-	}
+		  wd = inotify_add_watch(inotify, path, IN_ALL_EVENTS);
+		  if (wd == -1) {
+			  error("inotify_add_watch %s: %s", path, strerror(errno));
+		  } else {
+			  // TODO print new directory added
+			  inotify_add(wd, path);
+		  }
       }
     }
   } /* if (check_dir) */
 
   if (get_perm) { // TODO deal with errors
-    if (stat(path, &s) == 0)
-      snprintf(permstr, sizeof(permstr), "%o", s.st_mode);
+	  if (stat(path, &s) == 0) {
+		  snprintf(permstr, sizeof(permstr), "%o", s.st_mode);
+	  }
   }
 
   if (hash) {
-    if (s.st_size < maxsize)
-      md5 = md5_digest_file(path);
-    else
-      md5 = "TOOLARGETOHASH";
+	  if (s.st_size < maxsize) {
+		  md5 = md5_digest_file(path);
+	  } else {
+		  md5 = "TOOLARGETOHASH";
+	  }
   }
 
   json_object *jobj           = json_object_new_object();
@@ -245,11 +253,15 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 
   char *msg = (char *)json_object_to_json_string(jobj);
   // TODO reuse output()
-  if (!daemonize)
-    if (!quiet)
-      printf("%s\n", msg);
-  if (remote_logging)
+  if (!daemonize) {
+	  if (!quiet) {
+		  printf("%s\n", msg);
+	  }
+  }
+
+  if (remote_logging) {
     sockprintf(sock, "%s\r\n", msg);
+  }
 
   json_object_put(jobj);
 }
