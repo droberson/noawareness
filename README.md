@@ -10,10 +10,10 @@ probably has all kinds of bugs.
 ## Dependencies
 
 ### Debian/Ubuntu
-- OpenSSL - libssl-dev
+- ~OpenSSL - libssl-dev~
 - JSON-c  - libjson-c-dev
 
 ### CentOS
-- OpenSSL - openssl-devel
+- ~OpenSSL - openssl-devel~
 - JSON-C  - json-c-devel
 
