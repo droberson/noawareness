@@ -15,10 +15,12 @@
 #include "error.h"
 #include "net.h"
 #include "md5.h"
+#include "sha256.h"
 #include "inotify_common.h"
 #include "time_common.h"
 
-#define MD5_TOO_LARGE "TOOLARGETOHASH"
+#define MD5_TOO_LARGE    "TOOLARGETOHASH"
+#define SHA256_TOO_LARGE "TOOLOARGETOHASH"
 
 /*
  * Globals
@@ -150,6 +152,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   //struct passwd *pwent;
   //struct group  *g;
   char          *md5;
+  char          *sha256;
 
 
   while (current->wd != e->wd) {
@@ -221,9 +224,12 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 
   if (hash) {
 	  if (s.st_size < maxsize) {
-		  md5 = md5_digest_file(path);
+		  // TODO: compute all hashes with one open()
+		  md5    = md5_digest_file(path);
+		  sha256 = sha256_digest_file(path);
 	  } else {
-		  md5 = MD5_TOO_LARGE;
+		  md5    = MD5_TOO_LARGE;
+		  sha256 = SHA256_TOO_LARGE;
 	  }
   }
 
@@ -238,6 +244,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   json_object *j_perm;
   json_object *j_size;
   json_object *j_md5;
+  json_object *j_sha256;
 
   json_object_object_add(jobj, "timestamp", j_timestamp);
   json_object_object_add(jobj, "hostname", j_hostname);
@@ -260,6 +267,8 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   if (hash) { // may not be present on deletion
     j_md5 = json_object_new_string(md5);
     json_object_object_add(jobj, "md5", j_md5);
+	j_sha256 = json_object_new_string(sha256);
+	json_object_object_add(jobj, "sha256", j_sha256);
   }
 
   char *msg = (char *)json_object_to_json_string(jobj);

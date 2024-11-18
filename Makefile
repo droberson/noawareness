@@ -33,6 +33,9 @@ noawareness: $(OFILES) $(MD5_OBJ)
 $(BUILD_DIR)/test-endswith: $(TEST_DIR)/test-endswith.c $(BUILD_DIR)/string.o
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test-sha256: $(TEST_DIR)/test-sha256.c $(BUILD_DIR)/sha256.o
+	$(CC) $(CFLAGS) $^ -o $@
+
 test: $(TEST_BINARIES)
 	@echo "Running tests..."
 	@for test in $(TEST_BINARIES); do \
@@ -41,4 +44,4 @@ test: $(TEST_BINARIES)
 	done
 
 clean:
-	rm -rf $(BUILD_DIR)/*.o $(MD5_OBJ) noawareness *~
+	rm -rf $(BUILD_DIR)/* $(MD5_OBJ) noawareness *~

@@ -7,6 +7,7 @@
 #include <json-c/json.h>
 
 #include "md5.h"
+#include "sha256.h"
 #include "proc.h"
 #include "time_common.h"
 #include "string_common.h"
@@ -34,9 +35,11 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   char                *exepath        = proc_get_exe_path(parent_pid);
   bool                 deleted;
   char                *md5;
+  char                *sha256;
   struct proc_status   status;
   json_object         *jobj           = json_object_new_object();
   json_object         *j_md5;
+  json_object         *j_sha256;
   json_object         *j_deleted;
   json_object         *j_timestamp    = json_object_new_double(timestamp());
   json_object         *j_hostname     = json_object_new_string(hostname);
@@ -55,8 +58,11 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object         *j_event_type   = json_object_new_string("fork");
 
   /* Do this before anything to have better chances of catching the hash */
+  // TODO: hashes with one open()
   md5 = md5_digest_file(proc_exe_path(parent_pid));
   j_md5 = json_object_new_string(md5);
+  sha256 = sha256_digest_file(proc_exe_path(parent_pid));
+  j_sha256 = json_object_new_string(sha256);
 
   /* If files are running, but have been deleted on disk, the
    * symbolic link in /proc/PID/exe has (deleted) appended to
@@ -104,6 +110,7 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object_object_add(jobj, "gid", j_gid);
   json_object_object_add(jobj, "egid", j_egid);
   json_object_object_add(jobj, "md5", j_md5);
+  json_object_object_add(jobj, "sha256", j_sha256);
   json_object_object_add(jobj, "parent_pid", j_parent_pid);
   json_object_object_add(jobj, "parent_tgid", j_parent_tgid);
   json_object_object_add(jobj, "child_pid", j_child_pid);
@@ -142,6 +149,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object           *j_process_tgid = \
     json_object_new_int(event->event_data.exec.process_tgid);
   json_object           *j_md5;
+  json_object           *j_sha256;
   json_object           *j_cmdline;
   json_object           *j_cwd;
   json_object           *j_uid, *j_euid;
@@ -149,7 +157,9 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object           *j_event_type   = json_object_new_string("exec");
 
   /* Do this before everything to maximize chances of catching it */
+  // TODO hashes in one open() instead of two
   j_md5          = json_object_new_string(md5_digest_file(exefile));
+  j_sha256       = json_object_new_string(sha256_digest_file(exefile));
   j_exepath      = json_object_new_string(exefile);
   j_cmdline      = json_object_new_string(proc_get_cmdline(pid));
   j_cwd          = json_object_new_string(proc_cwd(pid));
@@ -169,6 +179,7 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object_object_add(jobj, "gid", j_gid);
   json_object_object_add(jobj, "egid", j_egid);
   json_object_object_add(jobj, "md5", j_md5);
+  json_object_object_add(jobj, "sha256", j_sha256);
   json_object_object_add(jobj, "exepath", j_exepath);
   json_object_object_add(jobj, "cmdline", j_cmdline);
   json_object_object_add(jobj, "cwd", j_cwd);

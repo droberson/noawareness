@@ -10,10 +10,15 @@ probably has all kinds of bugs.
 ## Dependencies
 
 ### Debian/Ubuntu
-- ~OpenSSL - libssl-dev~
 - JSON-c  - libjson-c-dev
 
 ### CentOS
-- ~OpenSSL - openssl-devel~
 - JSON-C  - json-c-devel
 
+## Credits
+
+The SHA256 implementation by Brad Conte:
+https://github.com/B-Con/crypto-algorithms
+
+The MD5 implementation used in this project was originally written by
+RSA Data Security, Inc.
