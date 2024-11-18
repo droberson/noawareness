@@ -18,9 +18,11 @@
 #include "inotify_common.h"
 #include "time_common.h"
 
+#define MD5_TOO_LARGE "TOOLARGETOHASH"
 
 /*
  * Globals
+ * TODO: reduce global variables
  */
 inotify_t               *head = NULL;
 extern char              hostname[HOST_NAME_MAX];
@@ -46,6 +48,10 @@ void inotify_remove(int wd) {
   inotify_t     *search;
   inotify_t     *match;
 
+  if (!head) {
+	  return;
+  }
+
   search = head;
 
   if (search->wd == wd) {
@@ -70,6 +76,18 @@ void inotify_remove(int wd) {
   }
 }
 
+static void inotify_clear_all() {
+	inotify_t *current = head;
+	while (current) {
+		inotify_t *next = current->next;
+		inotify_rm_watch(inotify, current->wd);
+		free(current);
+		current = next;
+	}
+
+	head = NULL;
+}
+
 void inotify_add_files(int fd, const char *path) {
   int	 wd;
   FILE  *fp;
@@ -88,14 +106,7 @@ void inotify_add_files(int fd, const char *path) {
   if (head != NULL) {
     /* We are already watching files. Close them all so they can be
        re-opened. This probably happened because of a SIGHUP. */
-    inotify_t *cur;
-
-    do {
-      cur = head;
-      head = head->next;
-      inotify_rm_watch(inotify, cur->wd);
-      free(cur);
-    } while(head);
+	  inotify_clear_all();
   }
 
   fp = fopen(path, "r");
@@ -212,7 +223,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 	  if (s.st_size < maxsize) {
 		  md5 = md5_digest_file(path);
 	  } else {
-		  md5 = "TOOLARGETOHASH";
+		  md5 = MD5_TOO_LARGE;
 	  }
   }
 
@@ -234,7 +245,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   json_object_object_add(jobj, "inotify_mask", j_inotify_mask);
   json_object_object_add(jobj, "path", j_path);
 
-  if (get_perm) {
+  if (get_perm) { // not available on all types of events such as deletion
     j_uid  = json_object_new_int(s.st_uid);
     j_gid  = json_object_new_int(s.st_gid);
     j_perm = json_object_new_string(permstr);
@@ -246,7 +257,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
     json_object_object_add(jobj, "size", j_size);
   }
 
-  if (hash) {
+  if (hash) { // may not be present on deletion
     j_md5 = json_object_new_string(md5);
     json_object_object_add(jobj, "md5", j_md5);
   }
