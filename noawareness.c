@@ -178,45 +178,48 @@ void write_pid_file(const char *path, pid_t pid) {
 	fclose(pidfile);
 }
 
-static void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
-  int                 recv_length;
-  socklen_t           nl_kernel_len;
-  struct nlmsghdr     *nlh;
-  char                buf[1024] = {0};
+static void select_netlink(int netlink,
+						   struct sockaddr_nl nl_kernel,
+						   struct cn_msg *cn_message) {
+	int                 recv_length;
+	socklen_t           nl_kernel_len;
+	struct nlmsghdr     *nlh;
+	char                buf[1024] = {0};
 
-  nl_kernel_len = sizeof(nl_kernel);
+	nl_kernel_len = sizeof(nl_kernel);
 
-  recv_length = recvfrom(netlink,
-                         buf,
-                         sizeof(buf),
-                         0,
-                         (struct sockaddr *)&nl_kernel,
-                         &nl_kernel_len);
-  nlh = (struct nlmsghdr *)buf;
+	recv_length = recvfrom(netlink,
+						   buf,
+						   sizeof(buf),
+						   0,
+						   (struct sockaddr *)&nl_kernel,
+						   &nl_kernel_len);
+	nlh = (struct nlmsghdr *)buf;
 
-  if ((recv_length < 1) || (nl_kernel.nl_pid != 0)) {
-    return;
-  }
-
-  while (NLMSG_OK(nlh, recv_length)) {
-    cn_message = NLMSG_DATA(nlh);
-
-    if ((nlh->nlmsg_type == NLMSG_NOOP) || (nlh->nlmsg_type == NLMSG_ERROR)) {
-      continue;
+	if ((recv_length < 1) || (nl_kernel.nl_pid != 0)) {
+		return;
 	}
 
-    if (nlh->nlmsg_type == NLMSG_OVERRUN) {
-      break;
+	while (NLMSG_OK(nlh, recv_length)) {
+		cn_message = NLMSG_DATA(nlh);
+
+		if ((nlh->nlmsg_type == NLMSG_NOOP) ||
+			(nlh->nlmsg_type == NLMSG_ERROR)) {
+			continue;
+		}
+
+		if (nlh->nlmsg_type == NLMSG_OVERRUN) {
+			break;
+		}
+
+		handle_netlink_message(cn_message);
+
+		if (nlh->nlmsg_type == NLMSG_DONE) {
+			break;
+		} else {
+			nlh = NLMSG_NEXT(nlh, recv_length);
+		}
 	}
-
-    handle_netlink_message(cn_message);
-
-    if (nlh->nlmsg_type == NLMSG_DONE) {
-      break;
-    } else {
-      nlh = NLMSG_NEXT(nlh, recv_length);
-    }
-  }
 }
 
 static void select_inotify(int inotify) {
