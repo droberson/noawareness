@@ -67,30 +67,36 @@ static void handle_sighup(int, siginfo_t *, void *);
 
 
 void output(const char *msg) {
-  if (!daemonize)
-    if (!quiet)
-      printf("%s\n", msg);
+	if (!daemonize) {
+		if (!quiet) {
+			printf("%s\n", msg);
+		}
+	}
 
-  if (remote_logging)
-    sockprintf(sock, "%s\r\n", msg);
+	if (remote_logging) {
+		sockprintf(sock, "%s\r\n", msg);
+	}
 
-  if (log_to_file)
-    fprintf(outfilep, "%s\n", msg);
+	if (log_to_file) {
+		fprintf(outfilep, "%s\n", msg);
+	}
 }
 
 void msg(const char *fmt, ...) {
-  char buf[8192] = {0};
-  va_list vl;
+	char    buf[8192] = {0};
+	va_list vl;
 
-  va_start(vl, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, vl);
-  va_end(vl);
+	va_start(vl, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, vl);
+	va_end(vl);
 
-  if (use_syslog)
-    syslog(LOG_INFO | LOG_USER, "%s", buf);
+	if (use_syslog) {
+		syslog(LOG_INFO | LOG_USER, "%s", buf);
+	}
 
-  if (!daemonize)
-    printf("%s\n", buf);
+	if (!daemonize) {
+		printf("%s\n", buf);
+	}
 }
 
 static void handle_netlink_message(struct cn_msg *cn_message) {
@@ -155,19 +161,21 @@ static void handle_netlink_message(struct cn_msg *cn_message) {
   }
 
   /* If we have data to output, deal with it. */
-  if (msg != NULL)
+  if (msg != NULL) {
     output(msg);
+  }
 }
 
 void write_pid_file(const char *path, pid_t pid) {
-  FILE        *pidfile;
+	FILE        *pidfile;
 
-  pidfile = fopen(path, "w");
-  if (pidfile == NULL)
-    error_fatal("Unable to open PID file %s: %s", path, strerror(errno));
+	pidfile = fopen(path, "w");
+	if (pidfile == NULL) {
+		error_fatal("Unable to open PID file %s: %s", path, strerror(errno));
+	}
 
-  fprintf(pidfile, "%d", pid);
-  fclose(pidfile);
+	fprintf(pidfile, "%d", pid);
+	fclose(pidfile);
 }
 
 static void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_msg *cn_message) {
@@ -186,17 +194,20 @@ static void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_
                          &nl_kernel_len);
   nlh = (struct nlmsghdr *)buf;
 
-  if ((recv_length < 1) || (nl_kernel.nl_pid != 0))
+  if ((recv_length < 1) || (nl_kernel.nl_pid != 0)) {
     return;
+  }
 
   while (NLMSG_OK(nlh, recv_length)) {
     cn_message = NLMSG_DATA(nlh);
 
-    if ((nlh->nlmsg_type == NLMSG_NOOP) || (nlh->nlmsg_type == NLMSG_ERROR))
+    if ((nlh->nlmsg_type == NLMSG_NOOP) || (nlh->nlmsg_type == NLMSG_ERROR)) {
       continue;
+	}
 
-    if (nlh->nlmsg_type == NLMSG_OVERRUN)
+    if (nlh->nlmsg_type == NLMSG_OVERRUN) {
       break;
+	}
 
     handle_netlink_message(cn_message);
 
@@ -209,30 +220,32 @@ static void select_netlink(int netlink, struct sockaddr_nl nl_kernel, struct cn_
 }
 
 static void select_inotify(int inotify) {
-  char                  *p;
-  int                   res;
-  char                  buf[INOTIFY_BUF_LEN];
-  struct inotify_event  *event;
+	char                  *p;
+	int                   res;
+	char                  buf[INOTIFY_BUF_LEN];
+	struct inotify_event  *event;
 
-  res = read(inotify, buf, sizeof(buf));
-  if ((res == 0) || (res == -1))
-    error_fatal("read() on inotify fd: %s", strerror(errno));
+	res = read(inotify, buf, sizeof(buf));
+	if ((res == 0) || (res == -1)) {
+		error_fatal("read() on inotify fd: %s", strerror(errno));
+	}
 
-  for (p = buf; p < buf + res; ) {
-    event = (struct inotify_event *) p;
-    inotify_process_event(inotify, event);
-    p += sizeof(struct inotify_event) + event->len;
-  }
+	for (p = buf; p < buf + res; ) {
+		event = (struct inotify_event *) p;
+		inotify_process_event(inotify, event);
+		p += sizeof(struct inotify_event) + event->len;
+	}
 }
 
 FILE *open_log_file(const char *outfile) {
-  FILE *fp;
+	FILE *fp;
 
-  fp = fopen(outfile, "a+");
-  if (fp == NULL)
-    error_fatal("Unable to open log file: %s", strerror(errno));
+	fp = fopen(outfile, "a+");
+	if (fp == NULL) {
+		error_fatal("Unable to open log file: %s", strerror(errno));
+	}
 
-  return fp;
+	return fp;
 }
 
 static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
@@ -240,14 +253,14 @@ static void handle_sighup(int sig, siginfo_t *siginfo, void *context) {
 }
 
 static void install_sighup_handler() {
-  struct sigaction act = {0};
+	struct sigaction act = {0};
 
-  act.sa_sigaction = handle_sighup;
-  act.sa_flags = 0;
+	act.sa_sigaction = handle_sighup;
+	act.sa_flags = 0;
 
-  if (sigaction(SIGHUP, &act, NULL) < 0) {
-    error_fatal("sigaction(): %s", strerror(errno));
-  }
+	if (sigaction(SIGHUP, &act, NULL) < 0) {
+		error_fatal("sigaction(): %s", strerror(errno));
+	}
 }
 
 static void usage(const char *progname) {
@@ -351,31 +364,36 @@ int main(int argc, char *argv[]) {
   }
 
   /* Set up syslog() */
-  if (use_syslog)
+  if (use_syslog) {
     openlog("noawareness", LOG_PID, LOG_USER);
+  }
 
   /* SIGHUP handler. */
   install_sighup_handler();
 
   /* Open log file. */
-  if (log_to_file)
+  if (log_to_file) {
     outfilep = open_log_file(outfile);
+  }
 
   /* Get our hostname for reporting purposes. */
-  if (gethostname(hostname, sizeof(hostname)) == -1)
+  if (gethostname(hostname, sizeof(hostname)) == -1) {
     error_fatal("gethostname(): %s", strerror(errno));
+  }
 
   /* Create inotify descriptor. */
   inotify = inotify_init();
-  if (inotify == -1)
+  if (inotify == -1) {
     error_fatal("inotify_init(): %s", strerror(errno));
+  }
 
   inotify_add_files(inotify, inotifyconfig);
 
   /* Create netlink socket. */
   netlink = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
-  if (netlink == -1)
+  if (netlink == -1) {
     error_fatal("error creating netlink socket: %s", strerror(errno));
+  }
 
   nl_kernel.nl_family = AF_NETLINK;
   nl_kernel.nl_groups = CN_IDX_PROC;
@@ -386,8 +404,9 @@ int main(int argc, char *argv[]) {
   nl_userland.nl_pid    = getpid();
 
   err = bind(netlink, (struct sockaddr *)&nl_userland, sizeof(nl_userland));
-  if (err == -1)
+  if (err == -1) {
     error_fatal("error binding netlink socket: %s", strerror(errno));
+  }
 
   memset(buf, 0x00, sizeof(buf));
   nl_header = (struct nlmsghdr *)buf;
@@ -419,8 +438,9 @@ int main(int argc, char *argv[]) {
   if (remote_logging) {
     struct sockaddr_in  s_addr;
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0)
+    if (sock < 0) {
       error_fatal("socket(): %s", strerror(errno));
+	}
 
     bzero(&s_addr, sizeof(s_addr));
     s_addr.sin_family = AF_INET;
@@ -429,15 +449,17 @@ int main(int argc, char *argv[]) {
 
     /* connect() UDP socket so you dont have to use sendto() */
     err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
-    if (err == -1)
+    if (err == -1) {
       error_fatal("connect(): %s", strerror(errno));
+	}
   }
 
   /* Daemonize the process if desired. */
   if (daemonize) {
     pid = fork();
-    if (pid < 0)
+    if (pid < 0) {
       error_fatal("fork(): %s", strerror(errno));
+	}
 
     else if (pid > 0) {
       write_pid_file(pidfile, pid);
