@@ -100,70 +100,70 @@ void msg(const char *fmt, ...) {
 }
 
 static void handle_netlink_message(struct cn_msg *cn_message) {
-  struct proc_event   *event;
-  char                *msg;
-  char                *environment;
+	struct proc_event   *event;
+	char                *msg;
+	char                *environment;
 
-  msg = NULL;
-  event = (struct proc_event *)cn_message->data;
+	msg = NULL;
+	event = (struct proc_event *)cn_message->data;
 
-  switch (event->what) {
-  case PROC_EVENT_NONE:
-    break;
+	switch (event->what) {
+	case PROC_EVENT_NONE:
+		break;
 
-  case PROC_EVENT_FORK:
-    msg = handle_PROC_EVENT_FORK(event);
-    break;
+	case PROC_EVENT_FORK:
+		msg = handle_PROC_EVENT_FORK(event);
+		break;
 
-  case PROC_EVENT_EXEC:
-    msg = handle_PROC_EVENT_EXEC(event);
-    environment = handle_PROC_EVENT_EXEC_environment(event);
-    output(environment);
-    break;
+	case PROC_EVENT_EXEC:
+		msg = handle_PROC_EVENT_EXEC(event);
+		environment = handle_PROC_EVENT_EXEC_environment(event);
+		output(environment);
+		break;
 
-  case PROC_EVENT_EXIT:
-    msg = handle_PROC_EVENT_EXIT(event);
-    break;
+	case PROC_EVENT_EXIT:
+		msg = handle_PROC_EVENT_EXIT(event);
+		break;
 
-  case PROC_EVENT_UID:
-    msg = handle_PROC_EVENT_UID(event);
-    break;
+	case PROC_EVENT_UID:
+		msg = handle_PROC_EVENT_UID(event);
+		break;
 
 #ifdef PROC_EVENT_PTRACE // Not available in older releases
-  case PROC_EVENT_PTRACE:
-    msg = handle_PROC_EVENT_PTRACE(event);
-    break;
+	case PROC_EVENT_PTRACE:
+		msg = handle_PROC_EVENT_PTRACE(event);
+		break;
 #endif
 
-   case PROC_EVENT_GID:
-    msg = handle_PROC_EVENT_GID(event);
-    break;
+	case PROC_EVENT_GID:
+		msg = handle_PROC_EVENT_GID(event);
+		break;
 
-  case PROC_EVENT_SID:
-    handle_PROC_EVENT_SID(event);
-    break;
+	case PROC_EVENT_SID:
+		handle_PROC_EVENT_SID(event);
+		break;
 
 #ifdef PROC_EVENT_COMM // Not available in older releases
-  case PROC_EVENT_COMM:
-    handle_PROC_EVENT_COMM(event);
-    break;
+	case PROC_EVENT_COMM:
+		handle_PROC_EVENT_COMM(event);
+		break;
 #endif
 
 #ifdef PROC_EVENT_COREDUMP // Not available in older releases
-  case PROC_EVENT_COREDUMP:
-    handle_PROC_EVENT_COREDUMP(event);
-    break;
+	case PROC_EVENT_COREDUMP:
+		handle_PROC_EVENT_COREDUMP(event);
+		break;
 #endif
 
-  default:
-    error("event %d not handled yet", event->what);
-    break;
-  }
+	default:
+		error("event %d not handled yet", event->what);
+		break;
+	}
 
-  /* If we have data to output, deal with it. */
-  if (msg != NULL) {
-    output(msg);
-  }
+	/* If we have data to output, deal with it. */
+	if (msg != NULL) {
+		output(msg);
+	}
 }
 
 void write_pid_file(const char *path, pid_t pid) {
