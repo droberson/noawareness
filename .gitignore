@@ -2,4 +2,4 @@
 *.swp
 core
 build/*
-bin/*
+noawareness
