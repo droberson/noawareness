@@ -262,29 +262,29 @@ static void install_sighup_handler() {
 }
 
 static void usage(const char *progname) {
-  fprintf(stderr, "usage: %s [-h?]\n\n", progname);
-  fprintf(stderr, "    -h/-?      - Print this menu and exit.\n");
-  fprintf(stderr, "    -d         - Daemonize. Default: %s\n",
-	  daemonize ? "yes" : "no");
-  fprintf(stderr, "    -i <path>  - Path to inotify config file. Default: %s\n",
-	  inotifyconfig);
-  fprintf(stderr, "    -m <bytes> - Max size of file to hash. Default: %ld\n",
-	  maxsize);
-  fprintf(stderr, "    -o <file>  - Outfile for JSON output, Default: %s\n",
-	  outfile);
-  fprintf(stderr, "    -O         - Toggle local JSON logging. Default: %s\n",
-	  log_to_file ? "true" : "false");
-  fprintf(stderr, "    -P <path>  - Path to PID file. Default: %s\n", pidfile);
-  fprintf(stderr, "    -r         - Toggle remote logging. Default: %s\n",
-	  remote_logging ? "true" : "false");
-  fprintf(stderr, "    -s <IP>    - Remote log server. Default: %s\n",
-	  log_server);
-  fprintf(stderr, "    -S         - Toggle syslog. Default: %s\n",
-	  use_syslog ? "true" : "false");
-  fprintf(stderr, "    -p <port>  - Port of remote server. Default: %d\n",
-	  log_server_port);
-  fprintf(stderr, "    -q         - Toggle quiet mode. Default: %s\n",
-	  quiet ? "true" : "false");
+	fprintf(stderr, "usage: %s [-h?]\n\n", progname);
+	fprintf(stderr, "    -h/-?      - Print this menu and exit.\n");
+	fprintf(stderr, "    -d         - Daemonize. Default: %s\n",
+			daemonize ? "yes" : "no");
+	fprintf(stderr, "    -i <path>  - Path to inotify config file. Default: %s\n",
+			inotifyconfig);
+	fprintf(stderr, "    -m <bytes> - Max size of file to hash. Default: %ld\n",
+			maxsize);
+	fprintf(stderr, "    -o <file>  - Outfile for JSON output, Default: %s\n",
+			outfile);
+	fprintf(stderr, "    -O         - Toggle local JSON logging. Default: %s\n",
+			log_to_file ? "true" : "false");
+	fprintf(stderr, "    -P <path>  - Path to PID file. Default: %s\n", pidfile);
+	fprintf(stderr, "    -r         - Toggle remote logging. Default: %s\n",
+			remote_logging ? "true" : "false");
+	fprintf(stderr, "    -s <IP>    - Remote log server. Default: %s\n",
+			log_server);
+	fprintf(stderr, "    -S         - Toggle syslog. Default: %s\n",
+			use_syslog ? "true" : "false");
+	fprintf(stderr, "    -p <port>  - Port of remote server. Default: %d\n",
+			log_server_port);
+	fprintf(stderr, "    -q         - Toggle quiet mode. Default: %s\n",
+			quiet ? "true" : "false");
 
   exit(EXIT_FAILURE);
 }
