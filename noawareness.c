@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <syslog.h>
 #include <signal.h>
+#include <netdb.h>
 //#include <pwd.h>
 //#include <grp.h>
 
@@ -28,7 +29,6 @@
 #include "netlink_events.h"
 #include "inotify_common.h"
 
-// TODO ipv6
 // TODO map uids and gids to real names
   // implement getgrgid and getpwuid myself because cant link these static
 // TODO permissions, attributes, owner, groupships of files
@@ -347,8 +347,9 @@ int main(int argc, char *argv[]) {
 
     case 's': /* Remote server */
       log_server = optarg;
-      if (!validate_ipv4(log_server))
-	  error_fatal("Invalid IP address: %s", log_server);
+      if (!validate_ip(log_server)) {
+		  error_fatal("Invalid IP address: %s", log_server);
+	  }
       break;
 
     case 'S': /* Toggle syslog */
@@ -435,23 +436,59 @@ int main(int argc, char *argv[]) {
   }
 
   /* Create UDP socket for sending the logs. */
+  /* if (remote_logging) { */
+  /*   struct sockaddr_in  s_addr; */
+  /*   sock = socket(AF_INET, SOCK_DGRAM, 0); */
+  /*   if (sock < 0) { */
+  /*     error_fatal("socket(): %s", strerror(errno)); */
+  /* 	} */
+
+  /*   bzero(&s_addr, sizeof(s_addr)); */
+  /*   s_addr.sin_family = AF_INET; */
+  /*   s_addr.sin_addr.s_addr = inet_addr(log_server); */
+  /*   s_addr.sin_port = htons(log_server_port); */
+
+  /*   /\* connect() UDP socket so you dont have to use sendto() *\/ */
+  /*   err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr)); */
+  /*   if (err == -1) { */
+  /*     error_fatal("connect(): %s", strerror(errno)); */
+  /* 	} */
+  /* } */
+
   if (remote_logging) {
-    struct sockaddr_in  s_addr;
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-      error_fatal("socket(): %s", strerror(errno));
-	}
+	  struct addrinfo hints, *res, *rp;
 
-    bzero(&s_addr, sizeof(s_addr));
-    s_addr.sin_family = AF_INET;
-    s_addr.sin_addr.s_addr = inet_addr(log_server);
-    s_addr.sin_port = htons(log_server_port);
+	  memset(&hints, 0, sizeof(hints));
+	  hints.ai_family = AF_UNSPEC;
+	  hints.ai_socktype = SOCK_DGRAM;
 
-    /* connect() UDP socket so you dont have to use sendto() */
-    err = connect(sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
-    if (err == -1) {
-      error_fatal("connect(): %s", strerror(errno));
-	}
+	  char pstr[6];
+	  snprintf(pstr, sizeof(pstr), "%d", log_server_port);
+
+	  if (getaddrinfo(log_server, pstr, &hints, &res) != 0) {
+		  error_fatal("getaddrinfo(): %s", strerror(errno));
+	  }
+
+	  for (rp = res; rp != NULL; rp = rp->ai_next) {
+		  sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		  if (sock == -1) {
+			  continue;
+		  }
+
+		  if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1) {
+			  break;
+		  }
+
+		  close(sock);
+	  }
+
+	  if (rp == NULL) {
+		  error_fatal("Unable to connect to %s: %s\n",
+					  log_server,
+					  strerror(errno));
+	  }
+
+	  freeaddrinfo(res);
   }
 
   /* Daemonize the process if desired. */
