@@ -124,11 +124,11 @@ static void handle_netlink_message(struct cn_msg *cn_message) {
 		msg = handle_PROC_EVENT_UID(event);
 		break;
 
-#ifdef PROC_EVENT_PTRACE // Not available in older releases
+		//#ifdef PROC_EVENT_PTRACE // Not available in older releases
 	case PROC_EVENT_PTRACE:
 		msg = handle_PROC_EVENT_PTRACE(event);
 		break;
-#endif
+		//#endif
 
 	case PROC_EVENT_GID:
 		msg = handle_PROC_EVENT_GID(event);
@@ -138,17 +138,17 @@ static void handle_netlink_message(struct cn_msg *cn_message) {
 		handle_PROC_EVENT_SID(event);
 		break;
 
-#ifdef PROC_EVENT_COMM // Not available in older releases
+		//#ifdef PROC_EVENT_COMM // Not available in older releases
 	case PROC_EVENT_COMM:
 		handle_PROC_EVENT_COMM(event);
 		break;
-#endif
+		//#endif
 
-#ifdef PROC_EVENT_COREDUMP // Not available in older releases
+		//#ifdef PROC_EVENT_COREDUMP // Not available in older releases
 	case PROC_EVENT_COREDUMP:
 		handle_PROC_EVENT_COREDUMP(event);
 		break;
-#endif
+		//#endif
 
 	default:
 		error("event %d not handled yet", event->what);
@@ -487,7 +487,6 @@ int main(int argc, char *argv[]) {
 					  strerror(errno));
 	  }
 
-	  freeaddrinfo(res);
 
 	  char addr_s[INET6_ADDRSTRLEN];
 	  void *addr_ptr = NULL;
@@ -504,6 +503,8 @@ int main(int argc, char *argv[]) {
 		  inet_ntop(rp->ai_family, addr_ptr, addr_s, sizeof(addr_s))) {
 		  msg("Connected to logserver: %s:%d", addr_s, log_server_port);
 	  }
+
+	  freeaddrinfo(res);
   }
 
   /* Daemonize the process if desired. */

@@ -47,10 +47,13 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
 	WORD a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
-	for (i = 0, j = 0; i < 16; ++i, j += 4)
+	for (i = 0, j = 0; i < 16; ++i, j += 4) {
 		m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
-	for ( ; i < 64; ++i)
+	}
+
+	for ( ; i < 64; ++i) {
 		m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+	}
 
 	a = ctx->state[0];
 	b = ctx->state[1];
@@ -163,7 +166,7 @@ char *sha256_digest_file(const char *path) {
 	unsigned char   c[SHA256_DIGEST_LENGTH];
 	FILE           *fp;
 	int             bytes;
-	unsigned char   data[8192];
+	unsigned char   data[1024 * 256];
 	static char     digest[SHA256_DIGEST_LENGTH * 2 + 1];
 	SHA256_CTX      context;
 

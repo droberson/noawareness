@@ -25,7 +25,7 @@ char *md5_digest_file(const char *path) {
   unsigned char   c[MD5_DIGEST_LENGTH];
   FILE            *fp;
   int             bytes;
-  unsigned char   data[8192];
+  unsigned char   data[1024 * 64];
   static char     digest[MD5_DIGEST_LENGTH * 2 + 1];
   MD5_CTX         context;
 

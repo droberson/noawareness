@@ -19,8 +19,6 @@
 #include "inotify_common.h"
 #include "time_common.h"
 
-#define MD5_TOO_LARGE    "TOOLARGETOHASH"
-#define SHA256_TOO_LARGE "TOOLOARGETOHASH"
 
 /*
  * Globals
@@ -119,17 +117,20 @@ void inotify_add_files(int fd, const char *path) {
 
   // TODO add whether to look for just writes, creation, etc in config file.
   while (fgets(buf, sizeof(buf), fp) != NULL) {
-    buf[strcspn(buf, "\n")] = '\0';
-    if (strlen(buf) == 0) {
-      continue;
-	}
+	  if (buf[0] == '#') { // skip commented lines
+		  continue;
+	  }
+	  buf[strcspn(buf, "\n")] = '\0';
+	  if (strlen(buf) == 0) {
+		  continue;
+	  }
 
-    wd = inotify_add_watch(fd, buf, IN_ALL_EVENTS);
-    if (wd == -1) {
-      error("inotify_add_watch %s: %s", buf, strerror(errno));
-	} else {
-      inotify_add(wd, buf);
-	}
+	  wd = inotify_add_watch(fd, buf, IN_ALL_EVENTS);
+	  if (wd == -1) {
+		  error("inotify_add_watch %s: %s", buf, strerror(errno));
+	  } else {
+		  inotify_add(wd, buf);
+	  }
   }
 
   fclose(fp);
@@ -271,7 +272,7 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
 	json_object_object_add(jobj, "sha256", j_sha256);
   }
 
-  char *msg = (char *)json_object_to_json_string(jobj);
+  char *msg = strdup(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
   // TODO reuse output()
   if (!daemonize) {
 	  if (!quiet) {
@@ -284,4 +285,5 @@ void inotify_process_event(int inotify, struct inotify_event *e) {
   }
 
   json_object_put(jobj);
+  free(msg);
 }

@@ -15,6 +15,7 @@
 /****************************** MACROS ******************************/
 #define SHA256_BLOCK_SIZE    32            // SHA256 outputs a 32 byte digest
 #define SHA256_DIGEST_LENGTH SHA256_BLOCK_SIZE
+#define SHA256_TOO_LARGE     "TOOLARGETOHASH"
 
 #undef SHA256_SHOW_ERRORS // for debugging
 

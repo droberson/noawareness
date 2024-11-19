@@ -12,7 +12,7 @@
 
 #include "error.h"
 #include "proc.h"
-#include "md5.h"
+#include "base64.h"
 #include "string_common.h"
 
 #undef SHOW_READLINK_ERRORS

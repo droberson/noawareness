@@ -1,6 +1,9 @@
 #include <string.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #include <linux/cn_proc.h>
 
@@ -8,11 +11,13 @@
 
 #include "md5.h"
 #include "sha256.h"
+#include "base64.h"
 #include "proc.h"
 #include "time_common.h"
 #include "string_common.h"
 
 extern char hostname[HOST_NAME_MAX];
+extern unsigned long maxsize;
 
 /* handle_PROC_EVENT_FORK() - Handle PROC_EVENT_FORK events.
  *
@@ -57,13 +62,26 @@ char *handle_PROC_EVENT_FORK(struct proc_event *event) {
   json_object         *j_cmdline;
   json_object         *j_event_type   = json_object_new_string("fork");
 
-  /* Do this before anything to have better chances of catching the hash */
   // TODO: hashes with one open()
-  md5 = md5_digest_file(proc_exe_path(parent_pid));
-  j_md5 = json_object_new_string(md5);
-  sha256 = sha256_digest_file(proc_exe_path(parent_pid));
-  j_sha256 = json_object_new_string(sha256);
+  /* hash early to have better chances of catching the hash of
+   * short-lived processes
+   */
+  struct stat          sb;
+  char *parent_path = proc_exe_path(parent_pid);
 
+  if (stat(parent_path, &sb) == -1) {
+	  parent_path = "NULL";
+	  md5 = "NULL";
+	  sha256 = "NULL";
+  } else if (sb.st_size < maxsize) {
+	  md5 = md5_digest_file(parent_path);
+	  sha256 = sha256_digest_file(parent_path);
+  } else {
+	  md5 = MD5_TOO_LARGE;
+	  sha256 = SHA256_TOO_LARGE;
+  }
+  j_md5 = json_object_new_string(md5);
+  j_sha256 = json_object_new_string(sha256);
   /* If files are running, but have been deleted on disk, the
    * symbolic link in /proc/PID/exe has (deleted) appended to
    * it. This can still be opened and hashed with original values:
@@ -156,10 +174,27 @@ char *handle_PROC_EVENT_EXEC(struct proc_event *event) {
   json_object           *j_gid, *j_egid;
   json_object           *j_event_type   = json_object_new_string("exec");
 
-  /* Do this before everything to maximize chances of catching it */
+  /* hash early to maximize chances of catching hash of short-lived
+   * processes
+   */
   // TODO hashes in one open() instead of two
-  j_md5          = json_object_new_string(md5_digest_file(exefile));
-  j_sha256       = json_object_new_string(sha256_digest_file(exefile));
+  struct stat            sb;
+  char                  *md5;
+  char                  *sha256;
+  if (stat(exefile, &sb) == -1) {
+	  md5 = "NULL";
+	  sha256 = "NULL";
+	  exefile = "NULL";
+  } else if (sb.st_size < maxsize) {
+	  md5 = md5_digest_file(exefile);
+	  sha256 = sha256_digest_file(exefile);
+  } else {
+	  md5 = MD5_TOO_LARGE;
+	  sha256 = SHA256_TOO_LARGE;
+  }
+  j_md5 = json_object_new_string(md5);
+  j_sha256 = json_object_new_string(sha256);
+
   j_exepath      = json_object_new_string(exefile);
   j_cmdline      = json_object_new_string(proc_get_cmdline(pid));
   j_cwd          = json_object_new_string(proc_cwd(pid));
@@ -220,8 +255,8 @@ char *handle_PROC_EVENT_EXEC_environment(struct proc_event *event) {
   json_object           *j_uid, *j_euid;
   json_object           *j_gid, *j_egid;
   json_object           *j_event_type  = json_object_new_string("environment");
-  json_object           *j_environment = \
-    json_object_new_string(proc_environ(pid));
+  char                  *environment   = proc_environ(pid);
+  json_object           *j_environment = json_object_new_string(environment);
 
   procstatus = proc_get_status(pid);
   j_uid = json_object_new_int(procstatus.uid);
@@ -385,7 +420,7 @@ char *handle_PROC_EVENT_GID(struct proc_event *event) {
  *     This appears to be called AFTER ptrace() calls, so obtaining the
  *     path, hash, etc of the tracer process may fail sometimes.
  */
-#ifdef PROC_EVENT_PTRACE
+//#ifdef PROC_EVENT_PTRACE
 char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
   json_object *jobj = json_object_new_object();
   char        *targetpath    = \
@@ -422,7 +457,7 @@ char *handle_PROC_EVENT_PTRACE(struct proc_event *event) {
 
   return message;
 }
-#endif
+//#endif
 
 /* handle_PROC_EVENT_SID() - Handle PROC_EVENT_SID events.
  *
